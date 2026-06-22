@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stock Review Browser</title>
+
+<!--
+  Fonts: a monospace face for ticker symbols / numeric readouts (the things
+  you actually scan while reviewing charts), and a plain sans face for
+  buttons and labels. Loaded from Google Fonts CDN -- requires the viewer's
+  browser to have internet access (separate from any TradingView data).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  /* ==========================================================================
+     DESIGN TOKENS
+     ========================================================================== */
+  :root {
+    --bg:            #0a0e14;
+    --panel:         #11161f;
+    --panel-border:  #232a36;
+    --chart-bg:      #0d1117;
+
+    --text-primary:   #e7ecf3;
+    --text-secondary: #7c8798;
+    --text-dim:       #4b5563;
+
+    --accent:        #3ddc97; /* playing / healthy / "Check" mark */
+    --accent-dim:    rgba(61, 220, 151, 0.14);
+    --amber:         #e3a008; /* paused / "Watchlist" mark */
+    --amber-dim:     rgba(227, 160, 8, 0.14);
+    --red:           #f0566a; /* complete / stop / remove */
+    --red-dim:       rgba(240, 86, 106, 0.14);
+    --blue:          #4ea1f7; /* "Level 1" mark */
+    --blue-dim:      rgba(78, 161, 247, 0.14);
+    --violet:        #b389f9; /* "Level 2" mark */
+    --violet-dim:    rgba(179, 137, 249, 0.14);
+
+    --radius: 6px;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    overflow: hidden; /* the chart owns all scrolling/zooming, not the page */
+  }
+
+  /* ==========================================================================
+     LAYOUT SHELL
+     ========================================================================== */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ---- Header / control bar ------------------------------------------- */
+  #header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 10px 18px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-border);
+    flex-wrap: wrap;
+  }
+
+  .hdr-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* Ticker readout */
+  .ticker-symbol {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    min-width: 132px;
+  }
+
+  .ticker-position {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* Status pill */
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .status-pill.playing { background: var(--accent-dim); color: var(--accent); }
+  .status-pill.paused  { background: var(--amber-dim);  color: var(--amber); }
+  .status-pill.complete{ background: var(--red-dim);    color: var(--red); }
+
+  .countdown-readout {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    min-width: 86px;
+  }
+  .countdown-readout strong {
+    color: var(--text-primary);
+    font-size: 17px;
+  }
+
+  /* Interval control */
+  .interval-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .interval-control input {
+    width: 44px;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 6px;
+    text-align: center;
+  }
+  .interval-control input:focus { outline: none; border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover    { border-color: var(--accent); color: var(--accent); }
+  .btn:active   { transform: translateY(1px); }
+  .btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .btn:disabled:hover { border-color: var(--panel-border); color: var(--text-primary); }
+
+  .btn.primary { border-color: var(--accent); color: var(--accent); }
+  .btn.open     { border-color: var(--text-secondary); }
+
+  /* ---- Countdown progress strip ---------------------------------------- */
+  #progress-track {
+    flex: 0 0 auto;
+    height: 3px;
+    background: var(--panel-border);
+  }
+  #progress-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--accent);
+    transition: width 1s linear, background 0.2s ease;
+  }
+  #progress-fill.paused   { background: var(--amber); transition: background 0.2s ease; }
+  #progress-fill.complete { background: var(--red); }
+
+  /* ---- Complete banner --------------------------------------------------*/
+  #complete-banner {
+    flex: 0 0 auto;
+    display: none; /* toggled to flex when review finishes */
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 18px;
+    background: var(--red-dim);
+    border-bottom: 1px solid var(--panel-border);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--red);
+  }
+  #complete-banner .btn { color: var(--red); border-color: var(--red); }
+
+  /* ---- Main split: chart + sidebar -------------------------------------- */
+  #main {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0; /* let children fill remaining height instead of overflowing */
+  }
+
+  /* ---- Chart area -------------------------------------------------------*/
+  #chart-area {
+    flex: 1 1 auto;
+    position: relative;
+    background: var(--chart-bg);
+    min-height: 0;
+    min-width: 0;
+  }
+  #chart-container { width: 100%; height: 100%; }
+
+  .chart-message {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-family: var(--mono);
+    font-size: 14px;
+    text-align: center;
+    padding: 24px;
+  }
+  .chart-message code {
+    color: var(--text-primary);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+  }
+
+  /* ---- Sidebar: editable watchlist -------------------------------------- */
+  #sidebar {
+    flex: 0 0 260px;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-left: 1px solid var(--panel-border);
+    min-height: 0;
+  }
+
+  #sidebar-header {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--panel-border);
+    font-family: var(--mono);
+  }
+  .sidebar-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #sidebar-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  #sidebar-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+  .sidebar-header-actions { display: flex; align-items: center; gap: 6px; }
+  .sidebar-header-actions .btn { flex: 1 1 0; font-size: 10px; padding: 5px 6px; }
+
+  .sidebar-export-row { display: flex; gap: 6px; }
+  .sidebar-export-row select {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 5px 4px;
+  }
+  .sidebar-export-row select:focus { outline: none; border-color: var(--accent); }
+  .sidebar-export-row .btn { flex: 0 0 auto; font-size: 10px; padding: 5px 8px; }
+
+  .sidebar-mark-legend {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    line-height: 1.4;
+    color: var(--text-dim);
+  }
+
+  #sidebar-add {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  #add-textarea {
+    width: 100%;
+    resize: vertical;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 8px;
+    text-transform: uppercase;
+  }
+  #add-textarea::placeholder { color: var(--text-dim); text-transform: none; }
+  #add-textarea:focus { outline: none; border-color: var(--accent); }
+  .sidebar-add-hint {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  #sidebar-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 6px;
+  }
+
+  /* Each ticker row is wrapped so a hidden red "Remove" backdrop can sit
+     behind it, revealed only as the row is dragged left (swipe-to-delete). */
+  .sidebar-row-wrap { position: relative; }
+
+  .row-delete-backdrop {
+    position: absolute;
+    inset: 0;
+    visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 14px;
+    background: var(--red);
+    color: #1a0a0c;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-radius: 4px;
+  }
+
+  .sidebar-row {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    border-left: 3px solid transparent;
+    background: var(--panel);
+    user-select: none;   /* dragging shouldn't fight text selection */
+    touch-action: none;  /* dragging shouldn't fight touch scrolling */
+    cursor: grab;
+  }
+  .sidebar-row.dragging {
+    cursor: grabbing;
+    z-index: 20;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  }
+  .sidebar-row:hover { background: var(--bg); }
+  .sidebar-row.current {
+    background: var(--accent-dim);
+    border-left-color: var(--accent);
+  }
+  .sidebar-row.current .row-symbol { color: var(--accent); font-weight: 700; }
+
+  .row-index { color: var(--text-dim); font-size: 11px; min-width: 20px; flex: 0 0 auto; }
+  .row-symbol {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .row-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+
+  .row-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 13px;
+    border-radius: 3px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+  .row-btn:hover { background: var(--panel-border); color: var(--text-primary); }
+  .row-btn-add:hover { color: var(--accent); }
+  .row-btn-remove:hover { color: var(--red); }
+
+  /* Mark cycle button: none -> Check -> Level 1 -> Level 2 -> Watchlist -> none */
+  .row-mark {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--bg);
+    color: var(--text-dim);
+  }
+  .row-mark:hover { filter: brightness(1.25); }
+  .row-mark.mark-check  { background: var(--accent-dim); color: var(--accent); }
+  .row-mark.mark-level1 { background: var(--blue-dim);   color: var(--blue); }
+  .row-mark.mark-level2 { background: var(--violet-dim); color: var(--violet); }
+  .row-mark.mark-watch  { background: var(--amber-dim);  color: var(--amber); }
+
+  .insert-row { padding: 4px 8px; gap: 6px; align-items: flex-start; }
+  .insert-row textarea {
+    flex: 1 1 auto;
+    min-width: 0; /* let flex govern width so it doesn't overflow the row */
+    resize: vertical;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 6px;
+    text-transform: uppercase;
+  }
+  .insert-row textarea::placeholder { text-transform: none; color: var(--text-dim); }
+  .insert-row textarea:focus { outline: none; }
+  .insert-row .row-btn-add {
+    width: auto;
+    padding: 4px 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    align-self: flex-start;
+  }
+
+  .sidebar-empty {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-align: center;
+    padding: 24px 12px;
+  }
+
+  /* Small screens: let the header wrap, and shrink the sidebar instead of
+     letting it crowd out the chart. */
+  @media (max-width: 760px) {
+    #header { gap: 12px; }
+    .hdr-group { gap: 8px; }
+    #sidebar { flex-basis: 180px; width: 180px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============================ HEADER / STATUS BAR ===================== -->
+  <div id="header">
+
+    <!-- Left: which ticker, which position in the list -->
+    <div class="hdr-group">
+      <div class="ticker-symbol" id="ticker-symbol">--</div>
+      <div class="ticker-position" id="ticker-position">0 / 0</div>
+    </div>
+
+    <!-- Center: play status + countdown -->
+    <div class="hdr-group">
+      <div class="status-pill playing" id="status-pill">Playing</div>
+      <div class="countdown-readout" id="countdown-readout">Next in <strong id="countdown-value">--</strong>s</div>
+      <div class="interval-control">
+        <label for="interval-input">Interval</label>
+        <input type="number" id="interval-input" min="1" max="120" step="1" value="30" />
+        <span>s</span>
+      </div>
+    </div>
+
+    <!-- Right: transport controls -->
+    <div class="hdr-group">
+      <button class="btn" id="btn-prev"   title="Previous (&larr;)">Prev</button>
+      <button class="btn primary" id="btn-playpause" title="Pause / Resume (Space)">Pause</button>
+      <button class="btn" id="btn-next"   title="Next (&rarr;)">Next</button>
+      <button class="btn" id="btn-restart" title="Restart (R)">Restart</button>
+      <button class="btn open" id="btn-open" title="Open current ticker on TradingView in a new tab">Open Current Stock</button>
+    </div>
+
+  </div>
+
+  <!-- ============================ COUNTDOWN PROGRESS STRIP ================= -->
+  <div id="progress-track">
+    <div id="progress-fill"></div>
+  </div>
+
+  <!-- ============================ REVIEW COMPLETE BANNER =================== -->
+  <div id="complete-banner">
+    <span id="complete-banner-text">Review Complete</span>
+    <div class="hdr-group">
+      <button class="btn" id="btn-banner-restart">Restart</button>
+      <button class="btn" id="btn-banner-dismiss">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- ============================ CHART + SIDEBAR =========================== -->
+  <div id="main">
+
+    <!-- Chart area -->
+    <div id="chart-area">
+      <div id="chart-container"></div>
+    </div>
+
+    <!-- Watchlist sidebar: the editable list of tickers to review -->
+    <aside id="sidebar">
+      <div id="sidebar-header">
+        <div class="sidebar-header-top">
+          <span id="sidebar-title">Watchlist</span>
+          <span id="sidebar-count">0</span>
+        </div>
+        <div class="sidebar-header-actions">
+          <button class="btn" id="btn-copy-list" title="Copy the current ticker list to your clipboard">Copy List</button>
+        </div>
+        <div class="sidebar-export-row">
+          <select id="export-filter" title="What to include in the export">
+            <option value="all">All (grouped)</option>
+            <option value="check">Check</option>
+            <option value="level1">Level 1</option>
+            <option value="level2">Level 2</option>
+            <option value="watch">Watchlist</option>
+            <option value="viewed">Viewed</option>
+            <option value="unviewed">Unviewed</option>
+          </select>
+          <button class="btn" id="btn-export" title="Download the selected list as a .txt file">Export</button>
+        </div>
+        <div class="sidebar-mark-legend">Ctrl+Space cycles current ticker: &#10003; Check &rarr; 1 &rarr; 2 &rarr; W &rarr; none</div>
+      </div>
+
+      <div id="sidebar-add">
+        <textarea
+          id="add-textarea"
+          rows="2"
+          placeholder="Add ticker(s)... paste a list, or type one and press Enter"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <div class="sidebar-add-hint">Separate with commas, spaces, tabs, semicolons, or newlines. Drag a row up/down to reorder, or drag it left to delete.</div>
+      </div>
+
+      <!-- Rows are rendered by JS -->
+      <div id="sidebar-list"></div>
+    </aside>
+
+  </div>
+
+</div>
+
+<!-- Ticker list. Edit stocks.js to load a different watchlist / scanner output. -->
+<script src="stocks.js"></script>
+
+<script>
+(function () {
+  "use strict";
+
+  // ==========================================================================
+  // CONFIG
+  // Tunable defaults. Safe to change without touching the logic below.
+  // ==========================================================================
+  const CONFIG = {
+    defaultIntervalSeconds: 30,   // auto-advance speed
+    chartInterval: "D",           // "D" = daily. Do not default to weekly/monthly.
+    chartTheme: "dark",
+    tvScriptUrl: "https://s3.tradingview.com/tv.js",
+
+    // Default indicators applied to every chart on load.
+    // Reference: TradingView basic-studies input names --
+    //   MASimple@tv-basicstudies -> { length }
+    //   BB@tv-basicstudies       -> { length, mult }  (mult = the StdDev multiplier)
+    studies: [
+      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 50 } },
+      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 200 } },
+      { id: "BB@tv-basicstudies", version: 60, inputs: { length: 20, mult: 2 } },
+    ],
+  };
+
+  // Simple per-ticker review marks, cycled by clicking the row's mark button
+  // OR by pressing Ctrl+Space (which always acts on the currently-viewed
+  // ticker, no sidebar click needed):
+  //   none -> Check -> Level 1 -> Level 2 -> Watchlist -> none
+  const MARK_CYCLE = [null, "check", "level1", "level2", "watch"];
+  const MARK_GLYPH = { check: "\u2713", level1: "1", level2: "2", watch: "W" };
+  const MARK_LABEL = { check: "Check", level1: "Level 1", level2: "Level 2", watch: "Watchlist" };
+
+  function nextMark(current) {
+    const idx = MARK_CYCLE.indexOf(current);
+    return MARK_CYCLE[(idx + 1) % MARK_CYCLE.length];
+  }
+
+  // ==========================================================================
+  // STATE
+  // Single mutable object holding everything about "where we are" in the
+  // review session. state.stocks is a *live, editable* list -- the sidebar
+  // mutates it directly (insert/remove/reorder), and state.currentIndex
+  // just points at whichever entry is on screen.
+  // ==========================================================================
+  const state = {
+    stocks: (typeof STOCKS !== "undefined" && Array.isArray(STOCKS))
+      ? STOCKS.map(s => String(s).trim().toUpperCase()).filter(Boolean)
+          .map(symbol => ({ symbol: symbol, mark: null, viewed: false }))
+      : [],
+    currentIndex: 0,        // index into state.stocks currently on screen (-1 if none)
+    insertAfterIndex: null, // sidebar row currently showing its inline "insert" box
+
+    isPlaying: true,
+    isComplete: false,
+    intervalSeconds: CONFIG.defaultIntervalSeconds,
+    remainingSeconds: CONFIG.defaultIntervalSeconds,
+    timerId: null,          // setInterval handle for the normal-speed 1s tick
+    widgetSeq: 0,           // bump on every chart load to give each TradingView
+                             // widget container a fresh, unique id
+    tvReady: null,          // Promise that resolves once tv.js has loaded
+  };
+
+  // A few small bits of transient UI state live outside `state` on purpose --
+  // they're about *input handling*, not the review session itself.
+  let suppressRowClick = false; // true right after a drag, so it doesn't also "click"
+
+  const DRAG_CLICK_THRESHOLD = 6;  // px of movement before a press becomes a drag
+  const DRAG_DELETE_THRESHOLD = 90; // px of leftward drag that commits a delete
+
+  // ==========================================================================
+  // DOM REFERENCES
+  // ==========================================================================
+  const el = {
+    tickerSymbol:    document.getElementById("ticker-symbol"),
+    tickerPosition:  document.getElementById("ticker-position"),
+    statusPill:      document.getElementById("status-pill"),
+    countdownValue:  document.getElementById("countdown-value"),
+    intervalInput:   document.getElementById("interval-input"),
+    progressFill:    document.getElementById("progress-fill"),
+    chartContainer:  document.getElementById("chart-container"),
+    chartArea:       document.getElementById("chart-area"),
+    completeBanner:  document.getElementById("complete-banner"),
+    completeBannerText: document.getElementById("complete-banner-text"),
+    btnPrev:         document.getElementById("btn-prev"),
+    btnNext:         document.getElementById("btn-next"),
+    btnPlayPause:    document.getElementById("btn-playpause"),
+    btnRestart:      document.getElementById("btn-restart"),
+    btnOpen:         document.getElementById("btn-open"),
+    btnBannerRestart: document.getElementById("btn-banner-restart"),
+    btnBannerDismiss: document.getElementById("btn-banner-dismiss"),
+
+    // Sidebar
+    sidebarCount:    document.getElementById("sidebar-count"),
+    sidebarList:     document.getElementById("sidebar-list"),
+    addTextarea:     document.getElementById("add-textarea"),
+    btnCopyList:     document.getElementById("btn-copy-list"),
+    exportFilter:    document.getElementById("export-filter"),
+    btnExport:       document.getElementById("btn-export"),
+  };
+
+  // ==========================================================================
+  // TRADINGVIEW CHART LOADING
+  // ==========================================================================
+
+  /**
+   * Loads the TradingView widget script exactly once and caches the promise
+   * so every later chart switch can just `await` it.
+   */
+  function ensureTradingViewScriptLoaded() {
+    if (state.tvReady) return state.tvReady;
+
+    state.tvReady = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = CONFIG.tvScriptUrl;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load TradingView widget script"));
+      document.head.appendChild(script);
+    });
+
+    return state.tvReady;
+  }
+
+  /**
+   * Tears down whatever is currently in the chart container and mounts a
+   * fresh TradingView "Advanced Chart" widget for the given symbol. This is
+   * the full embedded TradingView experience -- zoom, pan, timeframe
+   * switching, indicators, comparison, drawing tools all work natively
+   * inside the widget's own iframe, the same as on tradingview.com.
+   *
+   * Note on drawing tools: there's no supported way for this page to
+   * pre-select a tool (e.g. "Measure" / Price Range) inside the chart on
+   * load. That level of control only exists in TradingView's separate,
+   * licensed Charting Library (a self-hosted product with its own JS API);
+   * the free public widget used here is a cross-origin iframe with no such
+   * hook exposed. The tool is still right there in the side toolbar -- one
+   * click to activate per chart -- just not something this page can do for
+   * you automatically.
+   */
+  function loadChart(symbol) {
+    state.widgetSeq += 1;
+    const containerId = "tv-widget-" + state.widgetSeq;
+
+    el.chartContainer.innerHTML = "";
+    const widgetDiv = document.createElement("div");
+    widgetDiv.id = containerId;
+    widgetDiv.style.width = "100%";
+    widgetDiv.style.height = "100%";
+    el.chartContainer.appendChild(widgetDiv);
+
+    ensureTradingViewScriptLoaded()
+      .then(() => {
+        // Guard against a stale load resolving after the user has already
+        // clicked elsewhere (e.g. rapid Next/Next/Next clicking).
+        if (!document.getElementById(containerId)) return;
+
+        /* global TradingView */
+        new TradingView.widget({
+          container_id: containerId,
+          autosize: true,
+          symbol: symbol,
+          interval: CONFIG.chartInterval, // Daily by default, per spec
+          timezone: "Etc/UTC",
+          theme: CONFIG.chartTheme,
+          style: "1",
+          locale: "en",
+          toolbar_bg: "#11161f",
+          enable_publishing: false,
+          allow_symbol_change: true, // user can still free-type other symbols
+          hide_top_toolbar: false,
+          hide_side_toolbar: false,
+          withdateranges: true,
+          details: false,
+          studies: CONFIG.studies,
+        });
+      })
+      .catch((err) => {
+        el.chartContainer.innerHTML =
+          '<div class="chart-message">Could not load TradingView.<br>' +
+          "Check your internet connection and reload.<br><br>" +
+          "<code>" + err.message + "</code></div>";
+      });
+  }
+
+  function showNoStocksMessage() {
+    el.chartContainer.innerHTML =
+      '<div class="chart-message">No tickers yet.<br>' +
+      "Paste or type some into the Watchlist panel on the right.</div>";
+  }
+
+  // ==========================================================================
+  // STATUS BAR + SIDEBAR RENDERING
+  // ==========================================================================
+
+  function renderStatusBar() {
+    const total = state.stocks.length;
+    const hasCurrent = total > 0 && state.currentIndex >= 0 && state.currentIndex < total;
+    const symbol = hasCurrent ? state.stocks[state.currentIndex].symbol : "--";
+
+    el.tickerSymbol.textContent = symbol;
+    el.tickerPosition.textContent = hasCurrent
+      ? (state.currentIndex + 1) + " / " + total
+      : "0 / " + total;
+
+    el.countdownValue.textContent = state.remainingSeconds;
+
+    // Status pill + progress bar colour follow the same three states.
+    el.statusPill.classList.remove("playing", "paused", "complete");
+    el.progressFill.classList.remove("paused", "complete");
+
+    if (state.isComplete) {
+      el.statusPill.classList.add("complete");
+      el.statusPill.textContent = "Complete";
+      el.progressFill.classList.add("complete");
+    } else if (state.isPlaying) {
+      el.statusPill.classList.add("playing");
+      el.statusPill.textContent = "Playing";
+      el.progressFill.classList.remove("complete");
+    } else {
+      el.statusPill.classList.add("paused");
+      el.statusPill.textContent = "Paused";
+      el.progressFill.classList.add("paused");
+    }
+
+    el.btnPlayPause.textContent = state.isPlaying ? "Pause" : "Resume";
+    el.btnPlayPause.disabled = state.isComplete;
+    el.btnNext.disabled = state.isComplete || total === 0;
+    el.btnPrev.disabled = total === 0 || state.currentIndex <= 0;
+    el.btnOpen.disabled = !hasCurrent;
+
+    updateProgressFillWidth();
+    renderSidebar();
+  }
+
+  function updateProgressFillWidth() {
+    const pct = state.intervalSeconds > 0
+      ? (state.remainingSeconds / state.intervalSeconds) * 100
+      : 0;
+    el.progressFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+  }
+
+  /** Rebuilds the sidebar's row list from state.stocks / state.currentIndex,
+   *  then scrolls the active ticker into view if it isn't already visible. */
+  function renderSidebar() {
+    el.sidebarCount.textContent = state.stocks.length;
+    updateExportButtonState();
+    el.sidebarList.innerHTML = "";
+
+    if (state.stocks.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "sidebar-empty";
+      empty.textContent = "No tickers yet. Paste or type some above.";
+      el.sidebarList.appendChild(empty);
+      return;
+    }
+
+    state.stocks.forEach((entry, i) => {
+      el.sidebarList.appendChild(buildSidebarRow(entry, i));
+      if (state.insertAfterIndex === i) {
+        el.sidebarList.appendChild(buildInsertRow(i));
+      }
+    });
+
+    const currentRow = el.sidebarList.querySelector(".sidebar-row.current");
+    if (currentRow) {
+      currentRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  /** A ticker row, wrapped so a hidden "Remove" backdrop can sit behind it
+   *  for the swipe-left-to-delete gesture. */
+  function buildSidebarRow(entry, i) {
+    const wrap = document.createElement("div");
+    wrap.className = "sidebar-row-wrap";
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "row-delete-backdrop";
+    backdrop.textContent = "Remove \u2715";
+    wrap.appendChild(backdrop);
+
+    const row = document.createElement("div");
+    row.className = "sidebar-row" + (i === state.currentIndex ? " current" : "");
+
+    const markBtn = document.createElement("button");
+    markBtn.type = "button";
+    markBtn.className = "row-mark" + (entry.mark ? " mark-" + entry.mark : "");
+    markBtn.textContent = entry.mark ? MARK_GLYPH[entry.mark] : "\u25CB"; // ○ = unmarked
+    markBtn.title = entry.mark
+      ? "Marked: " + MARK_LABEL[entry.mark] + " (click to cycle)"
+      : "Unmarked (click to cycle Check \u2192 1 \u2192 2 \u2192 W)";
+    markBtn.addEventListener("click", () => cycleMark(i));
+
+    const idxEl = document.createElement("span");
+    idxEl.className = "row-index";
+    idxEl.textContent = (i + 1) + ".";
+
+    const symEl = document.createElement("span");
+    symEl.className = "row-symbol";
+    symEl.textContent = entry.symbol;
+    symEl.title = "View " + entry.symbol;
+    symEl.addEventListener("click", () => {
+      if (suppressRowClick) { suppressRowClick = false; return; }
+      selectIndex(i);
+    });
+
+    const actions = document.createElement("span");
+    actions.className = "row-actions";
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "row-btn row-btn-add";
+    addBtn.title = "Insert a ticker after " + entry.symbol;
+    addBtn.textContent = "+";
+    addBtn.addEventListener("click", () => toggleInsertRow(i));
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "row-btn row-btn-remove";
+    removeBtn.title = "Remove " + entry.symbol;
+    removeBtn.textContent = "\u00D7";
+    removeBtn.addEventListener("click", () => removeTicker(i));
+
+    actions.appendChild(addBtn);
+    actions.appendChild(removeBtn);
+
+    row.appendChild(markBtn);
+    row.appendChild(idxEl);
+    row.appendChild(symEl);
+    row.appendChild(actions);
+
+    wrap.appendChild(row);
+    attachRowDragHandlers(row, wrap, backdrop, i);
+
+    return wrap;
+  }
+
+  /** The inline "type/paste ticker(s), press Enter" row shown after clicking a row's +. */
+  function buildInsertRow(afterIndex) {
+    const row = document.createElement("div");
+    row.className = "sidebar-row insert-row";
+
+    const textarea = document.createElement("textarea");
+    textarea.rows = 2;
+    textarea.placeholder = "Ticker(s)\u2026 paste a list, or type and press Enter";
+    textarea.autocomplete = "off";
+    textarea.spellcheck = false;
+
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        commitInsert(afterIndex, textarea.value);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        state.insertAfterIndex = null;
+        renderSidebar();
+      }
+    });
+    textarea.addEventListener("paste", () => {
+      // Let the paste land first, then commit it immediately -- pasting a
+      // whole scanner list into a row's + is the main point of this box.
+      setTimeout(() => commitInsert(afterIndex, textarea.value), 0);
+    });
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "row-btn row-btn-add";
+    confirmBtn.textContent = "Add";
+    confirmBtn.addEventListener("click", () => commitInsert(afterIndex, textarea.value));
+
+    row.appendChild(textarea);
+    row.appendChild(confirmBtn);
+
+    requestAnimationFrame(() => textarea.focus());
+    return row;
+  }
+
+  function toggleInsertRow(i) {
+    state.insertAfterIndex = (state.insertAfterIndex === i) ? null : i;
+    renderSidebar();
+  }
+
+  function commitInsert(afterIndex, rawValue) {
+    state.insertAfterIndex = null;
+    const symbols = parseTickerList(rawValue);
+    if (!symbols.length) {
+      renderSidebar();
+      return;
+    }
+    insertTickers(symbols, afterIndex + 1);
+  }
+
+  /** Cycles a ticker's review mark: none -> Check -> Level 1 -> Level 2 -> Watchlist -> none. */
+  function cycleMark(i) {
+    const entry = state.stocks[i];
+    if (!entry) return;
+    entry.mark = nextMark(entry.mark);
+    renderSidebar(); // only the sidebar is affected -- no need to touch the header
+  }
+
+  // ==========================================================================
+  // DRAG: reorder (vertical) and swipe-to-delete (leftward)
+  // Implemented with Pointer Events (unifies mouse/touch/pen) rather than
+  // native HTML5 drag-and-drop, since we need a directional swipe gesture
+  // (delete) alongside ordinary reordering, which native DnD doesn't model.
+  // Dragging is disabled while a row's insert box is open, so the two
+  // features never have to fight over what "row index i" currently means.
+  // ==========================================================================
+
+  function attachRowDragHandlers(row, wrap, backdrop, i) {
+    let drag = null;
+
+    row.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (state.insertAfterIndex !== null) return;
+      if (e.target.closest("button")) return; // let mark/+/x buttons work normally
+
+      drag = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        mode: null,
+        moved: false,
+        wrapEls: Array.from(el.sidebarList.children),
+        rowHeight: wrap.getBoundingClientRect().height,
+        targetIndex: i,
+      };
+      row.setPointerCapture(e.pointerId);
+    });
+
+    row.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      if (!drag.moved) {
+        if (Math.abs(dx) < DRAG_CLICK_THRESHOLD && Math.abs(dy) < DRAG_CLICK_THRESHOLD) return;
+        drag.moved = true;
+        drag.mode = (Math.abs(dx) > Math.abs(dy) && dx < 0) ? "delete" : "reorder";
+        row.classList.add("dragging");
+        if (drag.mode === "delete") backdrop.style.visibility = "visible";
+      }
+
+      e.preventDefault();
+
+      if (drag.mode === "delete") {
+        const clamped = Math.min(0, dx); // only leftward movement does anything
+        row.style.transform = "translateX(" + clamped + "px)";
+        const progress = Math.min(1, Math.abs(clamped) / DRAG_DELETE_THRESHOLD);
+        row.style.opacity = String(1 - 0.35 * progress);
+      } else {
+        row.style.transform = "translateY(" + dy + "px)";
+        const offset = Math.round(dy / drag.rowHeight);
+        const targetIndex = Math.max(0, Math.min(drag.wrapEls.length - 1, i + offset));
+        if (targetIndex !== drag.targetIndex) {
+          drag.targetIndex = targetIndex;
+          previewReorder(drag.wrapEls, i, targetIndex, drag.rowHeight);
+        }
+      }
+    });
+
+    function endDrag(e) {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      row.releasePointerCapture(e.pointerId);
+      row.classList.remove("dragging");
+
+      if (!drag.moved) {
+        drag = null;
+        return; // never crossed the threshold -- a plain click, not a drag
+      }
+
+      suppressRowClick = true; // the browser's own click would otherwise fire next
+
+      if (drag.mode === "delete") {
+        const dx = e.clientX - drag.startX;
+        if (Math.abs(Math.min(0, dx)) >= DRAG_DELETE_THRESHOLD) {
+          removeTicker(i); // re-renders the sidebar, discarding these inline styles
+        } else {
+          row.style.transition = "transform 150ms ease, opacity 150ms ease";
+          row.style.transform = "";
+          row.style.opacity = "";
+          backdrop.style.visibility = "hidden";
+        }
+      } else {
+        clearReorderPreview(drag.wrapEls, i);
+        row.style.transform = "";
+        if (drag.targetIndex !== i) {
+          moveTicker(i, drag.targetIndex);
+        }
+      }
+
+      drag = null;
+    }
+
+    row.addEventListener("pointerup", endDrag);
+    row.addEventListener("pointercancel", endDrag);
+  }
+
+  /** Shifts sibling rows out of the way to preview where a dragged row would land. */
+  function previewReorder(wrapEls, startIndex, targetIndex, rowHeight) {
+    wrapEls.forEach((wrapEl, idx) => {
+      if (idx === startIndex) return;
+      let shift = 0;
+      if (startIndex < targetIndex && idx > startIndex && idx <= targetIndex) shift = -1;
+      else if (startIndex > targetIndex && idx >= targetIndex && idx < startIndex) shift = 1;
+      wrapEl.style.transition = "transform 120ms ease";
+      wrapEl.style.transform = shift ? "translateY(" + (shift * rowHeight) + "px)" : "";
+    });
+  }
+
+  function clearReorderPreview(wrapEls, startIndex) {
+    wrapEls.forEach((wrapEl, idx) => {
+      if (idx === startIndex) return;
+      wrapEl.style.transition = "";
+      wrapEl.style.transform = "";
+    });
+  }
+
+  /** Moves a ticker from one position to another, keeping "current" pointed
+   *  at the same ticker regardless of where it ends up. */
+  function moveTicker(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const currentRef = state.currentIndex >= 0 ? state.stocks[state.currentIndex] : null;
+    const [moved] = state.stocks.splice(fromIndex, 1);
+    state.stocks.splice(toIndex, 0, moved);
+    state.currentIndex = currentRef ? state.stocks.indexOf(currentRef) : -1;
+    renderStatusBar();
+  }
+
+  // ==========================================================================
+  // COUNTDOWN / AUTOPLAY TIMER
+  // ==========================================================================
+
+  function stopCountdownTimer() {
+    if (state.timerId !== null) {
+      clearInterval(state.timerId);
+      state.timerId = null;
+    }
+  }
+
+  /** (Re)starts the normal-speed 1-second tick from a full interval. */
+  function startCountdownTimer() {
+    stopCountdownTimer();
+    state.remainingSeconds = state.intervalSeconds;
+    renderStatusBar();
+
+    state.timerId = setInterval(() => {
+      state.remainingSeconds -= 1;
+
+      if (state.remainingSeconds <= 0) {
+        goToNext();        // goToNext() restarts the timer itself if appropriate
+      } else {
+        // Just the number + progress bar -- NOT a full renderStatusBar().
+        // That call rebuilds the whole sidebar from scratch every time, which
+        // would yank focus out of (and silently close) any open "insert"
+        // box in the watchlist once a second while playing.
+        el.countdownValue.textContent = state.remainingSeconds;
+        updateProgressFillWidth();
+      }
+    }, 1000);
+  }
+
+  // ==========================================================================
+  // NAVIGATION
+  // ==========================================================================
+
+  /** Loads the chart for stocks[i], makes it current, and flags it viewed. */
+  function selectIndex(i) {
+    state.currentIndex = i;
+    const entry = state.stocks[i];
+    entry.viewed = true;
+    loadChart(entry.symbol);
+
+    if (state.isComplete) {
+      state.isComplete = false;
+      hideCompleteBanner();
+    }
+
+    if (state.isPlaying) {
+      startCountdownTimer();
+    } else {
+      state.remainingSeconds = state.intervalSeconds;
+      renderStatusBar();
+    }
+  }
+
+  function goToNext() {
+    if (state.stocks.length === 0) return;
+
+    if (state.currentIndex >= state.stocks.length - 1) {
+      // End of the list reached: stop, do not loop, show Review Complete.
+      stopCountdownTimer();
+      state.isPlaying = false;
+      state.isComplete = true;
+      state.remainingSeconds = 0;
+      showCompleteBanner();
+      renderStatusBar();
+      return;
+    }
+
+    selectIndex(state.currentIndex + 1);
+  }
+
+  function goToPrev() {
+    if (state.stocks.length === 0 || state.currentIndex <= 0) return;
+    selectIndex(state.currentIndex - 1);
+  }
+
+  function pause() {
+    if (state.isComplete) return;
+    state.isPlaying = false;
+    stopCountdownTimer();
+    renderStatusBar();
+  }
+
+  function resume() {
+    if (state.isComplete || state.stocks.length === 0) return;
+    state.isPlaying = true;
+    startCountdownTimer();
+  }
+
+  function togglePlayPause() {
+    if (state.isPlaying) pause(); else resume();
+  }
+
+  function restart() {
+    stopCountdownTimer();
+    state.isPlaying = true;
+    state.isComplete = false;
+    state.insertAfterIndex = null;
+    hideCompleteBanner();
+
+    if (state.stocks.length === 0) {
+      state.currentIndex = -1;
+      showNoStocksMessage();
+      renderStatusBar();
+      return;
+    }
+
+    selectIndex(0);
+  }
+
+  function openCurrentStock() {
+    const hasCurrent = state.currentIndex >= 0 && state.currentIndex < state.stocks.length;
+    if (!hasCurrent) return;
+    const symbol = state.stocks[state.currentIndex].symbol;
+    const url = "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent(symbol);
+    window.open(url, "_blank", "noopener");
+  }
+
+  // ==========================================================================
+  // WATCHLIST EDITING (sidebar)
+  // Insert/remove/move all operate directly on state.stocks. currentIndex is
+  // kept pointing at the *same ticker* through any edit -- e.g. inserting
+  // two tickers before the current one shifts currentIndex by two so the
+  // chart on screen doesn't change underneath you.
+  // ==========================================================================
+
+  /** Splices new ticker entries into state.stocks starting at `atIndex`. */
+  function insertTickers(symbols, atIndex) {
+    const clean = symbols.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+    if (!clean.length) return;
+
+    const wasEmpty = state.stocks.length === 0;
+    const newEntries = clean.map(symbol => ({ symbol: symbol, mark: null, viewed: false }));
+    state.stocks.splice(atIndex, 0, ...newEntries);
+
+    if (wasEmpty) {
+      selectIndex(0);
+      return;
+    }
+
+    if (atIndex <= state.currentIndex) {
+      state.currentIndex += newEntries.length;
+    }
+
+    if (state.isComplete) {
+      // There's now more to review past the old end of the list.
+      state.isComplete = false;
+      hideCompleteBanner();
+    }
+
+    renderStatusBar();
+  }
+
+  function removeTicker(i) {
+    if (i < 0 || i >= state.stocks.length) return;
+
+    state.stocks.splice(i, 1);
+
+    if (state.stocks.length === 0) {
+      stopCountdownTimer();
+      state.currentIndex = -1;
+      state.isPlaying = false;
+      state.isComplete = false;
+      hideCompleteBanner();
+      showNoStocksMessage();
+      renderStatusBar();
+      return;
+    }
+
+    if (i < state.currentIndex) {
+      // Something before the current ticker was removed -- same ticker,
+      // new (lower) index. No need to reload the chart.
+      state.currentIndex -= 1;
+      renderStatusBar();
+    } else if (i === state.currentIndex) {
+      // The ticker on screen was the one removed -- show whichever ticker
+      // now occupies this slot, clamping if it was the last one.
+      if (state.currentIndex >= state.stocks.length) {
+        state.currentIndex = state.stocks.length - 1;
+      }
+      selectIndex(state.currentIndex);
+    } else {
+      // Something after the current ticker was removed -- nothing on
+      // screen changes, just the list below it.
+      renderStatusBar();
+    }
+  }
+
+  /** Splits free-form pasted/typed text into individual ticker tokens.
+   *  Accepts comma, semicolon, tab, space, or newline as separators (in any
+   *  mix), so a pasted scanner list or a hand-typed "NVDA, AMD TSLA" both
+   *  parse the same way. */
+  function parseTickerList(raw) {
+    return String(raw).split(/[,;\s]+/).filter(Boolean);
+  }
+
+  /** Parses the bulk "Add" textarea and appends the result to the end. */
+  function commitAddTextarea() {
+    const raw = el.addTextarea.value;
+    el.addTextarea.value = "";
+    const symbols = parseTickerList(raw);
+    if (!symbols.length) return;
+    insertTickers(symbols, state.stocks.length);
+  }
+
+  // ==========================================================================
+  // COMPLETE BANNER
+  // ==========================================================================
+
+  function showCompleteBanner() {
+    el.completeBannerText.textContent =
+      "Review Complete \u2014 reviewed all " + state.stocks.length + " tickers.";
+    el.completeBanner.style.display = "flex";
+  }
+
+  function hideCompleteBanner() {
+    el.completeBanner.style.display = "none";
+  }
+
+  // ==========================================================================
+  // EXPORT
+  // The dropdown picks what goes into the .txt file:
+  //   - Check / Level 1 / Level 2 / Watchlist: a flat list of tickers
+  //     carrying that specific mark.
+  //   - Viewed / Unviewed: a flat list based on watch history instead of marks.
+  //   - All (grouped): every marked ticker, organized into one section per
+  //     mark category (unmarked tickers are left out -- there's no category
+  //     for them to belong to).
+  // ==========================================================================
+
+  function formatEntryLine(entry) {
+    return entry.mark ? entry.symbol + " " + MARK_GLYPH[entry.mark] : entry.symbol;
+  }
+
+  function buildExportLines(filter) {
+    if (filter === "all") {
+      const lines = [];
+      MARK_CYCLE.forEach((markKey) => {
+        if (!markKey) return; // skip the "unmarked" slot in the cycle
+        const matches = state.stocks.filter(e => e.mark === markKey);
+        if (!matches.length) return;
+        lines.push(MARK_LABEL[markKey].toUpperCase() + " (" + matches.length + ")");
+        matches.forEach(e => lines.push("  " + e.symbol));
+        lines.push("");
+      });
+      if (lines.length && lines[lines.length - 1] === "") lines.pop();
+      return lines;
+    }
+
+    let entries;
+    if (filter === "viewed") entries = state.stocks.filter(e => e.viewed);
+    else if (filter === "unviewed") entries = state.stocks.filter(e => !e.viewed);
+    else entries = state.stocks.filter(e => e.mark === filter);
+
+    return entries.map(formatEntryLine);
+  }
+
+  function updateExportButtonState() {
+    el.btnExport.disabled = buildExportLines(el.exportFilter.value).length === 0;
+  }
+
+  function exportFilteredList() {
+    const filter = el.exportFilter.value;
+    const lines = buildExportLines(filter);
+    const text = lines.join("\n") + (lines.length ? "\n" : "");
+
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filter + "-stocks-" + new Date().toISOString().slice(0, 10) + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ==========================================================================
+  // EVENT WIRING
+  // ==========================================================================
+
+  el.btnPrev.addEventListener("click", goToPrev);
+  el.btnNext.addEventListener("click", () => goToNext());
+  el.btnPlayPause.addEventListener("click", togglePlayPause);
+  el.btnRestart.addEventListener("click", restart);
+  el.btnOpen.addEventListener("click", openCurrentStock);
+  el.btnBannerRestart.addEventListener("click", restart);
+  el.btnBannerDismiss.addEventListener("click", hideCompleteBanner);
+
+  el.intervalInput.addEventListener("change", () => {
+    let val = parseInt(el.intervalInput.value, 10);
+    if (!Number.isFinite(val) || val < 1) val = 1;
+    if (val > 120) val = 120;
+    el.intervalInput.value = val;
+    state.intervalSeconds = val;
+    // Applied from the next full countdown onward; if currently playing,
+    // restart now so the new interval takes effect immediately.
+    if (state.isPlaying && !state.isComplete) {
+      startCountdownTimer();
+    } else {
+      state.remainingSeconds = Math.min(state.remainingSeconds, val);
+      renderStatusBar();
+    }
+  });
+
+  // Sidebar: bulk add box. Enter commits typed lines; pasting a list
+  // commits automatically once the paste has landed in the textarea.
+  el.addTextarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      commitAddTextarea();
+    }
+  });
+  el.addTextarea.addEventListener("paste", () => {
+    setTimeout(commitAddTextarea, 0);
+  });
+
+  el.btnCopyList.addEventListener("click", () => {
+    const text = state.stocks.map(entry => entry.symbol).join("\n");
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const original = el.btnCopyList.textContent;
+      el.btnCopyList.textContent = "Copied";
+      setTimeout(() => { el.btnCopyList.textContent = original; }, 1200);
+    }).catch(() => { /* clipboard permission denied -- fail quietly */ });
+  });
+
+  el.exportFilter.addEventListener("change", updateExportButtonState);
+  el.btnExport.addEventListener("click", exportFilteredList);
+
+  document.addEventListener("keydown", (e) => {
+    // Don't hijack typing into the interval input, the add box, or an
+    // in-progress sidebar insert.
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+    // Ctrl+Space: cycle the mark on whichever ticker is currently on screen,
+    // no sidebar click needed. e.repeat is ignored so holding the combo
+    // doesn't rapid-fire through every mark state.
+    if (e.code === "Space" && e.ctrlKey) {
+      e.preventDefault();
+      if (!e.repeat) cycleMark(state.currentIndex);
+      return;
+    }
+
+    // Plain Space: pause/resume. e.repeat is ignored so holding the key
+    // down doesn't rapid-fire toggles via the OS's key-repeat.
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (!e.repeat) togglePlayPause();
+      return;
+    }
+
+    switch (e.key) {
+      case "ArrowRight":
+        e.preventDefault();
+        goToNext();
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        goToPrev();
+        break;
+      case "r":
+      case "R":
+        e.preventDefault();
+        restart();
+        break;
+    }
+  });
+
+  // ==========================================================================
+  // INIT
+  // ==========================================================================
+
+  function init() {
+    el.intervalInput.value = state.intervalSeconds;
+
+    if (state.stocks.length === 0) {
+      state.currentIndex = -1;
+      showNoStocksMessage();
+      renderStatusBar();
+      return;
+    }
+
+    selectIndex(0);
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
