@@ -17,7 +17,10 @@
 
 <style>
   /* ==========================================================================
-     DESIGN TOKENS
+     DESIGN TOKENS -- dark theme is the default :root; [data-theme="light"]
+     overrides the neutral tokens only. Accent/mark colors stay the same in
+     both themes since they're already mid-saturation tones that read fine
+     on either background.
      ========================================================================== */
   :root {
     --bg:            #0a0e14;
@@ -31,7 +34,7 @@
 
     --accent:        #3ddc97; /* playing / healthy / "Check" mark */
     --accent-dim:    rgba(61, 220, 151, 0.14);
-    --amber:         #e3a008; /* paused / "Watchlist" mark */
+    --amber:         #e3a008; /* paused */
     --amber-dim:     rgba(227, 160, 8, 0.14);
     --red:           #f0566a; /* complete / stop / remove */
     --red-dim:       rgba(240, 86, 106, 0.14);
@@ -39,10 +42,23 @@
     --blue-dim:      rgba(78, 161, 247, 0.14);
     --violet:        #b389f9; /* "Level 2" mark */
     --violet-dim:    rgba(179, 137, 249, 0.14);
+    --teal:          #2dd4d4; /* "Level 0" mark */
+    --teal-dim:      rgba(45, 212, 212, 0.14);
 
     --radius: 6px;
     --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  [data-theme="light"] {
+    --bg:            #eef0f3;
+    --panel:         #ffffff;
+    --panel-border:  #d7dbe2;
+    --chart-bg:      #ffffff;
+
+    --text-primary:   #1a1f29;
+    --text-secondary: #5b6472;
+    --text-dim:       #93989f;
   }
 
   * { box-sizing: border-box; }
@@ -239,11 +255,11 @@
     z-index: 5;
     pointer-events: none;
     font-family: var(--mono);
-    font-weight: 800;
+    font-weight: 700;
     font-size: clamp(48px, 14vw, 220px);
     letter-spacing: 0.02em;
     color: var(--text-primary);
-    opacity: 0.16;
+    opacity: 0.11;
     white-space: nowrap;
     user-select: none;
   }
@@ -270,7 +286,7 @@
     padding: 2px 6px;
   }
 
-  /* ---- Sidebar: editable watchlist -------------------------------------- */
+  /* ---- Sidebar: editable watchlist + saved view -------------------------- */
   #sidebar {
     flex: 0 0 260px;
     width: 260px;
@@ -292,25 +308,37 @@
   }
   .sidebar-header-top {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    align-items: stretch;
+    gap: 6px;
   }
-  #sidebar-title {
-    font-size: 12px;
+  .sidebar-tab {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-secondary);
-  }
-  #sidebar-count {
-    font-size: 11px;
-    color: var(--text-dim);
     background: var(--bg);
     border: 1px solid var(--panel-border);
-    border-radius: 999px;
-    padding: 2px 8px;
+    border-radius: 4px;
+    padding: 6px 4px;
+    cursor: pointer;
   }
+  .sidebar-tab:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+  .sidebar-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .sidebar-tab .tab-count {
+    font-size: 10px;
+    color: var(--text-dim);
+    background: var(--panel);
+    border-radius: 999px;
+    padding: 1px 6px;
+  }
+  .sidebar-tab.active .tab-count { color: var(--accent); }
   .sidebar-header-actions { display: flex; align-items: center; gap: 6px; }
   .sidebar-header-actions .btn { flex: 1 1 0; font-size: 10px; padding: 5px 6px; }
 
@@ -339,11 +367,30 @@
   .sidebar-export-row .btn { flex: 0 0 auto; font-size: 10px; padding: 5px 8px; }
 
   .sidebar-mark-legend {
-    font-family: var(--mono);
-    font-size: 9.5px;
-    line-height: 1.4;
+    font-family: var(--sans);
+    font-size: 10px;
+    line-height: 1.5;
     color: var(--text-dim);
   }
+
+  #selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 5px 8px;
+  }
+  #selection-bar.hidden { display: none; }
+  #selection-bar-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  #selection-bar .btn { font-size: 10px; padding: 4px 8px; }
 
   #sidebar-add {
     flex: 0 0 auto;
@@ -366,19 +413,47 @@
   #add-textarea:focus { outline: none; border-color: var(--accent); }
   .sidebar-add-hint {
     margin-top: 6px;
-    font-family: var(--mono);
-    font-size: 10px;
+    font-family: var(--sans);
+    font-size: 10.5px;
+    line-height: 1.5;
     color: var(--text-dim);
   }
+  #sidebar-add.hidden { display: none; }
 
-  #sidebar-list {
+  /* Shared scroll area for whichever list (Watchlist or Saved) is active */
+  #sidebar-list-wrap {
     flex: 1 1 auto;
     overflow-y: auto;
     padding: 6px;
+    min-height: 0;
   }
 
-  /* Each ticker row is wrapped so a hidden red "Remove" backdrop can sit
-     behind it, revealed only as the row is dragged left (swipe-to-delete). */
+  .saved-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 10px 6px 4px;
+    border-radius: 4px;
+    transition: color 120ms ease, background 120ms ease;
+  }
+  .saved-group-header:first-child { padding-top: 4px; }
+  .saved-group-header.drop-target {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  #sidebar-list, #saved-list { display: block; }
+  #sidebar-list.hidden, #saved-list.hidden { display: none; }
+
+  /* Each ticker row is wrapped so a hidden red backdrop can sit behind it,
+     revealed only as the row is dragged left (swipe-to-delete / unmark). */
   .sidebar-row-wrap { position: relative; }
 
   .row-delete-backdrop {
@@ -426,6 +501,12 @@
     border-left-color: var(--accent);
   }
   .sidebar-row.current .row-symbol { color: var(--accent); font-weight: 700; }
+  .sidebar-row.orphaned .row-symbol { opacity: 0.6; }
+  .sidebar-row.selected {
+    background: var(--blue-dim);
+    border-left-color: var(--blue);
+    box-shadow: inset 0 0 0 1px var(--blue);
+  }
 
   /* Brief highlight so a just-added ticker is obvious in the list, even if
      it lands somewhere out of the current scroll view. */
@@ -448,6 +529,7 @@
   .row-btn {
     width: 20px;
     height: 20px;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -465,7 +547,9 @@
   .row-btn-add:hover { color: var(--accent); }
   .row-btn-remove:hover { color: var(--red); }
 
-  /* Mark cycle button: none -> Check -> Level 1 -> Level 2 -> Watchlist -> none */
+  /* Mark button: shows the actual tier glyph/color (1/2/3/check), or an
+     empty circle when unmarked. Used identically in both the Watchlist and
+     the Saved view's group headers. */
   .row-mark {
     width: 20px;
     height: 20px;
@@ -486,9 +570,10 @@
   }
   .row-mark:hover { filter: brightness(1.25); }
   .row-mark.mark-check  { background: var(--accent-dim); color: var(--accent); }
+  .row-mark.mark-level0 { background: var(--teal-dim);   color: var(--teal); }
   .row-mark.mark-level1 { background: var(--blue-dim);   color: var(--blue); }
   .row-mark.mark-level2 { background: var(--violet-dim); color: var(--violet); }
-  .row-mark.mark-watch  { background: var(--amber-dim);  color: var(--amber); }
+  .row-mark.mark-level3 { background: var(--amber-dim);  color: var(--amber); }
 
   .insert-row { padding: 4px 8px; gap: 6px; align-items: flex-start; }
   .insert-row textarea {
@@ -563,6 +648,7 @@
       <button class="btn primary" id="btn-playpause" title="Pause / Resume (Space)">Pause</button>
       <button class="btn" id="btn-next"   title="Next (&rarr;)">Next</button>
       <button class="btn" id="btn-restart" title="Restart (R)">Restart</button>
+      <button class="btn" id="btn-theme" title="Toggle light/dark theme">Light Mode</button>
       <button class="btn open" id="btn-open" title="Open current ticker on TradingView in a new tab">Open Current Stock</button>
     </div>
 
@@ -591,34 +677,40 @@
       <div id="ticker-watermark"></div>
     </div>
 
-    <!-- Watchlist sidebar: the editable list of tickers to review -->
+    <!-- Watchlist sidebar: the editable list of tickers to review, plus a
+         second "Saved" view of whatever you've marked, grouped by tier.
+         Saved marks are independent of the Watchlist -- removing a ticker
+         from the Watchlist does not remove its mark from Saved. -->
     <aside id="sidebar">
       <div id="sidebar-header">
         <div class="sidebar-header-top">
-          <span id="sidebar-title">Watchlist</span>
-          <span id="sidebar-count">0</span>
+          <button class="sidebar-tab active" id="tab-watchlist" type="button">
+            Watchlist <span class="tab-count" id="tab-watchlist-count">0</span>
+          </button>
+          <button class="sidebar-tab" id="tab-saved" type="button">
+            Saved <span class="tab-count" id="tab-saved-count">0</span>
+          </button>
         </div>
         <div class="sidebar-header-actions">
           <button class="btn" id="btn-copy-list" title="Copy the current ticker list to your clipboard">Copy List</button>
         </div>
         <div class="sidebar-stocksfile-row">
           <span class="sidebar-stocksfile-label">stocks.js</span>
-          <button class="btn" id="btn-replace-stocks-file" title="Replace the current list with stocks.js -- clears marks, viewed history, and the current list">Replace</button>
+          <button class="btn" id="btn-replace-stocks-file" title="Replace the current list with stocks.js -- clears the Watchlist, Saved marks, and viewed history">Replace</button>
           <button class="btn" id="btn-append-stocks-file" title="Add any tickers from stocks.js not already in the list, to the end -- keeps marks and viewed history">Append</button>
         </div>
         <div class="sidebar-export-row">
-          <select id="export-filter" title="What to include in the export">
-            <option value="all">All (grouped)</option>
-            <option value="check">Check</option>
-            <option value="level1">Level 1</option>
-            <option value="level2">Level 2</option>
-            <option value="watch">Watchlist</option>
-            <option value="viewed">Viewed</option>
-            <option value="unviewed">Unviewed</option>
+          <select id="export-filter" title="What to include in the export (Ctrl+E)">
+            <option value="saved">Saved (grouped)</option>
+            <option value="watchlist">Watchlist</option>
           </select>
-          <button class="btn" id="btn-export" title="Download the selected list as a .txt file">Export</button>
+          <button class="btn" id="btn-export" title="Download the selected list as a .txt file (Ctrl+E)">Export</button>
         </div>
-        <div class="sidebar-mark-legend">Ctrl+Space cycles current ticker: &#10003; Check &rarr; 1 &rarr; 2 &rarr; W &rarr; none</div>
+        <div class="sidebar-mark-legend">Ctrl/Cmd-click or Shift-click rows to multi-select &middot; Ctrl+Space/0/1/2/3: mark &middot; Delete: remove/unmark &middot; Ctrl+Z/Y: undo/redo &middot; Ctrl+E: export</div>
+        <div id="selection-bar" class="hidden">
+          <span id="selection-bar-text">0 selected</span>
+          <button class="btn" id="btn-clear-selection" title="Clear selection (Escape)">Clear</button>
+        </div>
       </div>
 
       <div id="sidebar-add">
@@ -629,11 +721,14 @@
           autocomplete="off"
           spellcheck="false"
         ></textarea>
-        <div class="sidebar-add-hint">Separate with commas, spaces, tabs, semicolons, or newlines. Drag a row up/down to reorder, or drag it left to delete.</div>
+        <div class="sidebar-add-hint">Separate with commas, spaces, tabs, semicolons, or newlines. Or just paste (Ctrl+V) anywhere on this tab. Drag a row up/down to reorder, left to delete.</div>
       </div>
 
       <!-- Rows are rendered by JS -->
-      <div id="sidebar-list"></div>
+      <div id="sidebar-list-wrap">
+        <div id="sidebar-list"></div>
+        <div id="saved-list" class="hidden"></div>
+      </div>
     </aside>
 
   </div>
@@ -654,64 +749,221 @@
   const CONFIG = {
     defaultIntervalSeconds: 30,   // auto-advance speed
     chartInterval: "D",           // "D" = daily. Do not default to weekly/monthly.
-    chartTheme: "dark",
+    chartTheme: "dark",           // kept in sync with the page theme -- see applyTheme()
+    toolbarBg: "#11161f",         // ditto
     tvScriptUrl: "https://s3.tradingview.com/tv.js",
 
     // Default indicators applied to every chart on load.
     // Reference: TradingView basic-studies input names --
     //   MASimple@tv-basicstudies -> { length }
     //   BB@tv-basicstudies       -> { length, mult }  (mult = the StdDev multiplier)
+    //
+    // NOTE on the MA colors: the `overrides` key on each study entry below is
+    // a best-effort attempt at distinct per-instance colors (purple for the
+    // 50-day, azure for the 200-day) -- not a guaranteed-working mechanism in
+    // the free embeddable widget. See the README / chat for the full caveat.
     studies: [
-      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 50 } },
-      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 200 } },
+      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 50 },  overrides: { "plot.color": "#9B59B6" } },  // purple, best effort
+      { id: "MASimple@tv-basicstudies", version: 60, inputs: { length: 200 }, overrides: { "plot.color": "#0099FF" } },  // azure, best effort
       { id: "BB@tv-basicstudies", version: 60, inputs: { length: 20, mult: 2 } },
     ],
+
+    // Bollinger Bands recoloring -- the documented, reliable mechanism
+    // (studies_overrides), since there's only one BB instance so there's no
+    // multi-instance ambiguity. The fill/background key is best-effort.
+    studiesOverrides: {
+      "bollinger bands.upper.color": "#FFB347",  // light orange
+      "bollinger bands.lower.color": "#FFB347",  // light orange
+      "bollinger bands.median.color": "#FF8800", // stronger orange
+      "bollinger bands.fill.color": "#FF8800",   // best effort
+    },
   };
 
-  // Simple per-ticker review marks, cycled by clicking the row's mark button
-  // OR by pressing Ctrl+Space (which always acts on the currently-viewed
-  // ticker, no sidebar click needed):
-  //   none -> Check -> Level 1 -> Level 2 -> Watchlist -> none
-  const MARK_CYCLE = [null, "check", "level1", "level2", "watch"];
-  const MARK_GLYPH = { check: "\u2713", level1: "1", level2: "2", watch: "W" };
-  const MARK_LABEL = { check: "Check", level1: "Level 1", level2: "Level 2", watch: "Watchlist" };
-
-  function nextMark(current) {
-    const idx = MARK_CYCLE.indexOf(current);
-    return MARK_CYCLE[(idx + 1) % MARK_CYCLE.length];
-  }
+  // Each ticker carries at most one mark, set directly per tier rather than
+  // cycled. Ctrl+Space toggles "check" on/off on the currently-viewed
+  // ticker; Ctrl+0/1/2/3 toggle Level 0/1/2/3 the same way -- press the same
+  // shortcut again to remove it, or a different one to switch tiers (a
+  // ticker can only be in one tier at a time). MARK_KEYS is the canonical
+  // order used for grouping in the Saved view and the grouped export.
+  const MARK_KEYS = ["check", "level0", "level1", "level2", "level3"];
+  const MARK_GLYPH = { check: "\u2713", level0: "0", level1: "1", level2: "2", level3: "3" };
+  const MARK_LABEL = { check: "Check", level0: "Level 0", level1: "Level 1", level2: "Level 2", level3: "Level 3" };
 
   // ==========================================================================
   // STATE
-  // Single mutable object holding everything about "where we are" in the
-  // review session. state.stocks is a *live, editable* list -- the sidebar
-  // mutates it directly (insert/remove/reorder), and state.currentIndex
-  // just points at whichever entry is on screen.
+  // state.stocks is the live, editable Watchlist (symbol/viewed/addedAt --
+  // no mark here). state.saved is a SEPARATE collection of {symbol, mark},
+  // independent of the Watchlist -- removing a ticker from state.stocks does
+  // NOT touch state.saved, and a saved ticker doesn't need to currently
+  // exist in the Watchlist at all. getMark()/setMark() are the only places
+  // that should ever read or write a mark.
   // ==========================================================================
   const state = {
     stocks: (typeof STOCKS !== "undefined" && Array.isArray(STOCKS))
       ? STOCKS.map(s => String(s).trim().toUpperCase()).filter(Boolean)
-          .map(symbol => ({ symbol: symbol, mark: null, viewed: false }))
+          .map(symbol => ({ symbol: symbol, viewed: false }))
       : [],
-    currentIndex: 0,        // index into state.stocks currently on screen (-1 if none)
-    insertAfterIndex: null, // sidebar row currently showing its inline "insert" box
+    saved: [],                // [{ symbol, mark }] -- independent of state.stocks
+    currentIndex: 0,          // index into state.stocks currently on screen (-1 if none)
+    insertAfterIndex: null,   // Watchlist row currently showing its inline "insert" box
+    savedInsertTier: null,    // Saved-view tier group currently showing its inline "insert" box
+    activeTab: "watchlist",   // "watchlist" | "saved" -- which sidebar list is shown
+    selectedSymbols: new Set(), // multi-selected tickers (Ctrl/Shift-click), scoped to selectionTab
+    selectionTab: null,       // which tab the current selection belongs to -- switching tabs clears it
+    watchlistAnchor: null,    // last-clicked Watchlist index, for Shift-click range selection
+    savedAnchor: null,        // last-clicked Saved-view display index, ditto
+    savedDisplayOrder: [],    // symbols in the order the Saved view last rendered them, for ranges
+    theme: "dark",            // "dark" | "light"
 
     isPlaying: true,
     isComplete: false,
     intervalSeconds: CONFIG.defaultIntervalSeconds,
     remainingSeconds: CONFIG.defaultIntervalSeconds,
-    timerId: null,          // setInterval handle for the normal-speed 1s tick
+    timerId: null,          // setInterval handle for the 1-second tick
     widgetSeq: 0,           // bump on every chart load to give each TradingView
                              // widget container a fresh, unique id
     tvReady: null,          // Promise that resolves once tv.js has loaded
   };
 
-  // A few small bits of transient UI state live outside `state` on purpose --
-  // they're about *input handling*, not the review session itself.
+  const DRAG_CLICK_THRESHOLD = 6;    // px of movement before a press becomes a drag
+  const DRAG_DELETE_THRESHOLD = 90;  // px of leftward drag that commits a delete/unmark
+  const ADDED_FLASH_MS = 2500;       // how long a newly-inserted row stays highlighted
+  const UNDO_LIMIT = 100;            // how many list-edit steps are kept for undo
 
-  const DRAG_CLICK_THRESHOLD = 6;  // px of movement before a press becomes a drag
-  const DRAG_DELETE_THRESHOLD = 90; // px of leftward drag that commits a delete
-  const ADDED_FLASH_MS = 2500;      // how long a newly-inserted row stays highlighted
+  // ==========================================================================
+  // MARKS (independent of the Watchlist -- see state.saved above)
+  // ==========================================================================
+
+  function getMark(symbol) {
+    const entry = state.saved.find(e => e.symbol === symbol);
+    return entry ? entry.mark : null;
+  }
+
+  /** Sets a ticker's mark, or removes it entirely when tierKeyOrNull is null. */
+  function setMark(symbol, tierKeyOrNull) {
+    const existing = state.saved.find(e => e.symbol === symbol);
+    if (tierKeyOrNull === null) {
+      if (existing) state.saved.splice(state.saved.indexOf(existing), 1);
+    } else if (existing) {
+      existing.mark = tierKeyOrNull;
+    } else {
+      state.saved.push({ symbol: symbol, mark: tierKeyOrNull });
+    }
+  }
+
+  // ==========================================================================
+  // MULTI-SELECT
+  // Mouse-driven row selection (Ctrl/Cmd-click to toggle one, Shift-click for
+  // a contiguous range from the last-clicked row), used to apply Delete or
+  // a Ctrl+Space/0/1/2/3 mark to many tickers at once instead of just the one
+  // currently on screen. Selection is symbol-based and scoped to whichever
+  // tab it was made on -- switching tabs, or a plain click with no
+  // modifier, clears it, since Watchlist and Saved show different rows for
+  // the same underlying tickers and mixing the two would be ambiguous.
+  // ==========================================================================
+
+  function clearSelection() {
+    state.selectedSymbols = new Set();
+    state.selectionTab = null;
+  }
+
+  function hasActiveSelectionForTab(tab) {
+    return state.selectionTab === tab && state.selectedSymbols.size > 0;
+  }
+
+  /** Ctrl/Cmd-click: toggles one row in/out of the selection. Switches the
+   *  active selection to this tab first if it belonged to the other one. */
+  function toggleSelection(tab, displayIndex, symbol) {
+    if (state.selectionTab !== tab) {
+      state.selectedSymbols = new Set();
+      state.selectionTab = tab;
+    }
+    if (state.selectedSymbols.has(symbol)) {
+      state.selectedSymbols.delete(symbol);
+    } else {
+      state.selectedSymbols.add(symbol);
+    }
+    setAnchor(tab, displayIndex);
+  }
+
+  /** Shift-click: selects the contiguous range from this tab's last anchor
+   *  (the last plain- or Ctrl-clicked row) through this row, replacing
+   *  whatever was previously selected. The anchor itself is left
+   *  unchanged, so repeated Shift-clicks keep extending/shrinking from the
+   *  same starting point, same as a typical file-explorer's behavior. */
+  function selectRange(tab, displayIndex, orderedSymbols) {
+    if (state.selectionTab !== tab) {
+      state.selectedSymbols = new Set();
+      state.selectionTab = tab;
+      setAnchor(tab, displayIndex);
+    }
+    const anchor = (tab === "watchlist" ? state.watchlistAnchor : state.savedAnchor);
+    const from = anchor === null ? displayIndex : anchor;
+    const lo = Math.min(from, displayIndex);
+    const hi = Math.max(from, displayIndex);
+    state.selectedSymbols = new Set(orderedSymbols.slice(lo, hi + 1));
+  }
+
+  function setAnchor(tab, displayIndex) {
+    if (tab === "watchlist") state.watchlistAnchor = displayIndex;
+    else state.savedAnchor = displayIndex;
+  }
+
+  function renderSelectionBar() {
+    const count = (state.selectionTab === state.activeTab) ? state.selectedSymbols.size : 0;
+    el.selectionBar.classList.toggle("hidden", count === 0);
+    if (count === 0) return;
+    el.selectionBarText.textContent = count + " selected";
+  }
+
+  /** Delete with an active selection: removes from the Watchlist (marks
+   *  kept, same as a single-row delete) or unmarks in Saved (Watchlist
+   *  entries kept), depending on which tab the selection is on. */
+  function bulkDeleteOrUnmark() {
+    if (!hasActiveSelectionForTab(state.activeTab)) return;
+    const symbols = state.selectedSymbols;
+    pushUndo();
+
+    if (state.activeTab === "watchlist") {
+      const currentSymbol = (state.currentIndex >= 0 && state.currentIndex < state.stocks.length)
+        ? state.stocks[state.currentIndex].symbol : null;
+      state.stocks = state.stocks.filter(e => !symbols.has(e.symbol));
+      clearSelection();
+
+      if (state.stocks.length === 0) {
+        stopCountdownTimer();
+        state.currentIndex = -1;
+        state.isPlaying = false;
+        state.isComplete = false;
+        hideCompleteBanner();
+        showNoStocksMessage();
+        renderStatusBar();
+        return;
+      }
+
+      let newIndex = currentSymbol ? state.stocks.findIndex(e => e.symbol === currentSymbol) : -1;
+      if (newIndex === -1) newIndex = Math.min(state.currentIndex, state.stocks.length - 1);
+      selectIndex(newIndex);
+    } else {
+      symbols.forEach(sym => setMark(sym, null));
+      clearSelection();
+      renderStatusBar();
+    }
+  }
+
+  /** Ctrl+Space/0/1/2/3 with an active selection: if every selected ticker
+   *  already has this exact tier, clears it from all of them (a bulk
+   *  "uncheck"); otherwise sets all of them to this tier, overriding
+   *  whatever tier they had before. Selection is kept afterward so you can
+   *  see the result or immediately switch the same group to another tier. */
+  function bulkSetMark(tierKey) {
+    if (!hasActiveSelectionForTab(state.activeTab)) return;
+    const symbols = Array.from(state.selectedSymbols);
+    pushUndo();
+    const allAlreadyThisTier = symbols.every(sym => getMark(sym) === tierKey);
+    symbols.forEach(sym => setMark(sym, allAlreadyThisTier ? null : tierKey));
+    renderStatusBar();
+  }
 
   // ==========================================================================
   // DOM REFERENCES
@@ -732,19 +984,28 @@
     btnNext:         document.getElementById("btn-next"),
     btnPlayPause:    document.getElementById("btn-playpause"),
     btnRestart:      document.getElementById("btn-restart"),
+    btnTheme:        document.getElementById("btn-theme"),
     btnOpen:         document.getElementById("btn-open"),
     btnBannerRestart: document.getElementById("btn-banner-restart"),
     btnBannerDismiss: document.getElementById("btn-banner-dismiss"),
 
     // Sidebar
-    sidebarCount:    document.getElementById("sidebar-count"),
+    tabWatchlist:    document.getElementById("tab-watchlist"),
+    tabSaved:        document.getElementById("tab-saved"),
+    tabWatchlistCount: document.getElementById("tab-watchlist-count"),
+    tabSavedCount:   document.getElementById("tab-saved-count"),
+    sidebarAdd:      document.getElementById("sidebar-add"),
     sidebarList:     document.getElementById("sidebar-list"),
+    savedList:       document.getElementById("saved-list"),
     addTextarea:     document.getElementById("add-textarea"),
     btnCopyList:     document.getElementById("btn-copy-list"),
     btnReplaceStocksFile: document.getElementById("btn-replace-stocks-file"),
     btnAppendStocksFile: document.getElementById("btn-append-stocks-file"),
     exportFilter:    document.getElementById("export-filter"),
     btnExport:       document.getElementById("btn-export"),
+    selectionBar:    document.getElementById("selection-bar"),
+    selectionBarText: document.getElementById("selection-bar-text"),
+    btnClearSelection: document.getElementById("btn-clear-selection"),
   };
 
   // ==========================================================================
@@ -777,14 +1038,16 @@
    * switching, indicators, comparison, drawing tools all work natively
    * inside the widget's own iframe, the same as on tradingview.com.
    *
-   * Note on drawing tools: there's no supported way for this page to
-   * pre-select a tool (e.g. "Measure" / Price Range) inside the chart on
-   * load. That level of control only exists in TradingView's separate,
-   * licensed Charting Library (a self-hosted product with its own JS API);
-   * the free public widget used here is a cross-origin iframe with no such
-   * hook exposed. The tool is still right there in the side toolbar -- one
-   * click to activate per chart -- just not something this page can do for
-   * you automatically.
+   * IMPORTANT LIMITATION: any indicator/style change you make manually
+   * inside the chart (adding/removing studies, recoloring, drawings, etc.)
+   * is lost the moment the symbol changes, because this function always
+   * tears down and rebuilds the widget from CONFIG.studies. There is no
+   * supported way around this with the free public widget -- it's a sealed
+   * cross-origin iframe with no JS API to read back what you changed, and
+   * no save/restore hooks either (those exist only on TradingView's
+   * separate, licensed, self-hosted Charting Library). Same root cause as
+   * not being able to pre-select a drawing tool or track the in-chart
+   * symbol search.
    */
   function loadChart(symbol) {
     state.widgetSeq += 1;
@@ -813,7 +1076,7 @@
           theme: CONFIG.chartTheme,
           style: "1",
           locale: "en",
-          toolbar_bg: "#11161f",
+          toolbar_bg: CONFIG.toolbarBg,
           enable_publishing: false,
           allow_symbol_change: true, // user can still free-type other symbols
           hide_top_toolbar: false,
@@ -821,6 +1084,7 @@
           withdateranges: true,
           details: false,
           studies: CONFIG.studies,
+          studies_overrides: CONFIG.studiesOverrides,
         });
       })
       .catch((err) => {
@@ -835,6 +1099,31 @@
     el.chartContainer.innerHTML =
       '<div class="chart-message">No tickers yet.<br>' +
       "Paste or type some into the Watchlist panel on the right.</div>";
+  }
+
+  // ==========================================================================
+  // THEME
+  // ==========================================================================
+
+  const THEME_KEY = "stockReviewBrowser:theme";
+
+  function applyTheme(theme) {
+    state.theme = theme;
+    document.documentElement.setAttribute("data-theme", theme);
+    el.btnTheme.textContent = theme === "light" ? "Dark Mode" : "Light Mode";
+    try { localStorage.setItem(THEME_KEY, theme); } catch (err) { /* ignore */ }
+
+    // Keep the TradingView widget's own theme in sync, and reload the
+    // current chart so it actually takes effect (the embed only reads
+    // theme/toolbar_bg at construction time).
+    CONFIG.chartTheme = theme === "light" ? "light" : "dark";
+    CONFIG.toolbarBg = theme === "light" ? "#eef0f3" : "#11161f";
+    const hasCurrent = state.currentIndex >= 0 && state.currentIndex < state.stocks.length;
+    if (hasCurrent) loadChart(state.stocks[state.currentIndex].symbol);
+  }
+
+  function toggleTheme() {
+    applyTheme(state.theme === "light" ? "dark" : "light");
   }
 
   // ==========================================================================
@@ -889,10 +1178,11 @@
     el.progressFill.style.width = Math.max(0, Math.min(100, pct)) + "%";
   }
 
-  /** Rebuilds the sidebar's row list from state.stocks / state.currentIndex,
-   *  then scrolls the active ticker into view if it isn't already visible. */
+  /** Rebuilds the Watchlist row list from state.stocks / state.currentIndex,
+   *  then scrolls the active ticker into view. Also keeps the Saved view in
+   *  sync every time, regardless of which tab is currently visible. */
   function renderSidebar() {
-    el.sidebarCount.textContent = state.stocks.length;
+    el.tabWatchlistCount.textContent = state.stocks.length;
     updateExportButtonState();
     el.sidebarList.innerHTML = "";
 
@@ -901,27 +1191,27 @@
       empty.className = "sidebar-empty";
       empty.textContent = "No tickers yet. Paste or type some above.";
       el.sidebarList.appendChild(empty);
-      saveSession();
-      return;
-    }
+    } else {
+      state.stocks.forEach((entry, i) => {
+        el.sidebarList.appendChild(buildSidebarRow(entry, i));
+        if (state.insertAfterIndex === i) {
+          el.sidebarList.appendChild(buildInsertRow(i));
+        }
+      });
 
-    state.stocks.forEach((entry, i) => {
-      el.sidebarList.appendChild(buildSidebarRow(entry, i));
-      if (state.insertAfterIndex === i) {
-        el.sidebarList.appendChild(buildInsertRow(i));
+      const currentRow = el.sidebarList.querySelector(".sidebar-row.current");
+      if (currentRow) {
+        currentRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
-    });
-
-    const currentRow = el.sidebarList.querySelector(".sidebar-row.current");
-    if (currentRow) {
-      currentRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
+    renderSavedList();
+    renderSelectionBar();
     saveSession();
   }
 
-  /** A ticker row, wrapped so a hidden "Remove" backdrop can sit behind it
-   *  for the swipe-left-to-delete gesture. */
+  /** A Watchlist ticker row: tier glyph/color indicator, click to jump, +
+   *  to insert, x to remove, drag to reorder/delete. */
   function buildSidebarRow(entry, i) {
     const wrap = document.createElement("div");
     wrap.className = "sidebar-row-wrap";
@@ -931,20 +1221,23 @@
     backdrop.textContent = "Remove \u2715";
     wrap.appendChild(backdrop);
 
+    const mark = getMark(entry.symbol);
+    const isSelected = state.selectionTab === "watchlist" && state.selectedSymbols.has(entry.symbol);
     const row = document.createElement("div");
     const isRecentlyAdded = entry.addedAt && (Date.now() - entry.addedAt < ADDED_FLASH_MS);
     row.className = "sidebar-row"
       + (i === state.currentIndex ? " current" : "")
+      + (isSelected ? " selected" : "")
       + (isRecentlyAdded ? " just-added" : "");
 
     const markBtn = document.createElement("button");
     markBtn.type = "button";
-    markBtn.className = "row-mark" + (entry.mark ? " mark-" + entry.mark : "");
-    markBtn.textContent = entry.mark ? MARK_GLYPH[entry.mark] : "\u25CB"; // ○ = unmarked
-    markBtn.title = entry.mark
-      ? "Marked: " + MARK_LABEL[entry.mark] + " (click to cycle)"
-      : "Unmarked (click to cycle Check \u2192 1 \u2192 2 \u2192 W)";
-    markBtn.addEventListener("click", () => cycleMark(i));
+    markBtn.className = "row-mark" + (mark ? " mark-" + mark : "");
+    markBtn.textContent = mark ? MARK_GLYPH[mark] : "\u25CB"; // tier glyph, or ○ unmarked
+    markBtn.title = mark
+      ? "Saved as " + MARK_LABEL[mark] + " (click to remove)"
+      : "Not saved (click to save as Check, or use Ctrl+Space / Ctrl+0/1/2/3)";
+    markBtn.addEventListener("click", () => toggleWatchlistCheck(entry.symbol));
 
     const idxEl = document.createElement("span");
     idxEl.className = "row-index";
@@ -968,7 +1261,7 @@
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "row-btn row-btn-remove";
-    removeBtn.title = "Remove " + entry.symbol;
+    removeBtn.title = "Remove " + entry.symbol + " (Saved marks are kept)";
     removeBtn.textContent = "\u00D7";
     removeBtn.addEventListener("click", () => removeTicker(i));
 
@@ -981,7 +1274,7 @@
     row.appendChild(actions);
 
     wrap.appendChild(row);
-    attachRowDragHandlers(row, wrap, backdrop, i);
+    attachWatchlistRowDrag(row, wrap, backdrop, i, entry.symbol);
 
     return wrap;
   }
@@ -1045,30 +1338,251 @@
     insertTickers(symbols, afterIndex + 1);
   }
 
-  /** Cycles a ticker's review mark: none -> Check -> Level 1 -> Level 2 -> Watchlist -> none. */
-  function cycleMark(i) {
-    const entry = state.stocks[i];
-    if (!entry) return;
-    entry.mark = nextMark(entry.mark);
-    renderSidebar(); // only the sidebar is affected -- no need to touch the header
+  /** Toggles the Watchlist's mark button: clears whatever tier was set, or
+   *  sets "check" if nothing was. */
+  function toggleWatchlistCheck(symbol) {
+    pushUndo();
+    setMark(symbol, getMark(symbol) ? null : "check");
+    renderSidebar();
+  }
+
+  /** Sets/clears one specific tier on a ticker (Ctrl+Space/0/1/2/3). Pressing
+   *  the shortcut for the tier it's already in removes the mark; pressing a
+   *  different tier's shortcut switches it. */
+  function toggleMarkTier(symbol, tierKey) {
+    if (!symbol) return;
+    pushUndo();
+    setMark(symbol, getMark(symbol) === tierKey ? null : tierKey);
+    renderSidebar();
+  }
+
+  /** Removes a ticker's mark only -- used by the Saved view's drag/delete
+   *  and the Delete key on that tab. Never touches the Watchlist. */
+  function unmarkEntry(symbol) {
+    if (!symbol || !getMark(symbol)) return;
+    pushUndo();
+    setMark(symbol, null);
+    renderSidebar();
   }
 
   // ==========================================================================
-  // DRAG: reorder (vertical) and swipe-to-delete (leftward)
-  // Implemented with Pointer Events (unifies mouse/touch/pen) rather than
-  // native HTML5 drag-and-drop, since we need a directional swipe gesture
-  // (delete) alongside ordinary reordering, which native DnD doesn't model.
-  // Dragging is disabled while a row's insert box is open, so the two
-  // features never have to fight over what "row index i" currently means.
+  // SAVED VIEW
+  // Iterates state.saved (NOT state.stocks) grouped by tier -- a saved
+  // ticker is shown here even if it's no longer in the Watchlist. Clicking
+  // such an "orphaned" row re-adds it to the Watchlist (at the end) and
+  // jumps to it, since there's nothing in the list yet to jump to.
   // ==========================================================================
 
-  function attachRowDragHandlers(row, wrap, backdrop, i) {
+  function renderSavedList() {
+    el.savedList.innerHTML = "";
+    el.tabSavedCount.textContent = state.saved.length;
+    state.savedDisplayOrder = [];
+
+    if (state.saved.length === 0 && state.savedInsertTier === null) {
+      const empty = document.createElement("div");
+      empty.className = "sidebar-empty";
+      empty.textContent = "Nothing saved yet. Mark a ticker (its checkbox, or Ctrl+Space / Ctrl+0/1/2/3).";
+      el.savedList.appendChild(empty);
+      return;
+    }
+
+    MARK_KEYS.forEach((tierKey) => {
+      const entries = state.saved.filter(e => e.mark === tierKey);
+      if (!entries.length && state.savedInsertTier !== tierKey) return;
+
+      const header = document.createElement("div");
+      header.className = "saved-group-header";
+      header.dataset.tier = tierKey;
+
+      const headerLabel = document.createElement("span");
+      headerLabel.textContent = MARK_LABEL[tierKey] + " (" + entries.length + ")";
+
+      const headerAddBtn = document.createElement("button");
+      headerAddBtn.type = "button";
+      headerAddBtn.className = "row-btn row-btn-add";
+      headerAddBtn.title = "Add a new ticker directly as " + MARK_LABEL[tierKey];
+      headerAddBtn.textContent = "+";
+      headerAddBtn.addEventListener("click", () => toggleSavedInsertRow(tierKey));
+
+      header.appendChild(headerLabel);
+      header.appendChild(headerAddBtn);
+      el.savedList.appendChild(header);
+
+      if (state.savedInsertTier === tierKey) {
+        el.savedList.appendChild(buildSavedInsertRow(tierKey));
+      }
+
+      entries.forEach((savedEntry) => {
+        const displayIndex = state.savedDisplayOrder.length;
+        state.savedDisplayOrder.push(savedEntry.symbol);
+        el.savedList.appendChild(buildSavedRow(savedEntry, displayIndex));
+      });
+    });
+
+    const currentSavedRow = el.savedList.querySelector(".sidebar-row.current");
+    if (currentSavedRow) {
+      currentSavedRow.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+
+  /** A Saved-view row: click to jump (re-adding to the Watchlist first if
+   *  it's no longer there), drag left to unmark, drag up/down into a
+   *  different tier's group to re-tier it. */
+  function buildSavedRow(savedEntry, displayIndex) {
+    const wrap = document.createElement("div");
+    wrap.className = "sidebar-row-wrap";
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "row-delete-backdrop";
+    backdrop.textContent = "Unmark \u2715";
+    wrap.appendChild(backdrop);
+
+    const stockIndex = state.stocks.findIndex(e => e.symbol === savedEntry.symbol);
+    const isCurrent = stockIndex >= 0 && stockIndex === state.currentIndex;
+    const isOrphaned = stockIndex === -1;
+    const isSelected = state.selectionTab === "saved" && state.selectedSymbols.has(savedEntry.symbol);
+
+    const row = document.createElement("div");
+    row.className = "sidebar-row"
+      + (isCurrent ? " current" : "")
+      + (isSelected ? " selected" : "")
+      + (isOrphaned ? " orphaned" : "");
+
+    const symEl = document.createElement("span");
+    symEl.className = "row-symbol";
+    symEl.textContent = savedEntry.symbol;
+    symEl.title = isOrphaned
+      ? "No longer in the Watchlist -- click to add it back and view it"
+      : "View " + savedEntry.symbol;
+    row.appendChild(symEl);
+
+    wrap.appendChild(row);
+    attachSavedRowDrag(row, wrap, backdrop, savedEntry, displayIndex);
+
+    return wrap;
+  }
+
+  function toggleSavedInsertRow(tierKey) {
+    state.savedInsertTier = (state.savedInsertTier === tierKey) ? null : tierKey;
+    renderSavedList();
+  }
+
+  /** The inline "add a new ticker directly as this tier" box, shown after
+   *  clicking a tier group's +. */
+  function buildSavedInsertRow(tierKey) {
+    const row = document.createElement("div");
+    row.className = "sidebar-row insert-row";
+
+    const textarea = document.createElement("textarea");
+    textarea.rows = 2;
+    textarea.placeholder = "Ticker(s)\u2026 paste or type, then Enter";
+    textarea.autocomplete = "off";
+    textarea.spellcheck = false;
+
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        commitSavedInsert(tierKey, textarea.value);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        state.savedInsertTier = null;
+        renderSavedList();
+      }
+    });
+    textarea.addEventListener("paste", () => {
+      setTimeout(() => commitSavedInsert(tierKey, textarea.value), 0);
+    });
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "row-btn row-btn-add";
+    confirmBtn.textContent = "Add";
+    confirmBtn.addEventListener("click", () => commitSavedInsert(tierKey, textarea.value));
+
+    row.appendChild(textarea);
+    row.appendChild(confirmBtn);
+
+    requestAnimationFrame(() => textarea.focus());
+    return row;
+  }
+
+  function commitSavedInsert(tierKey, rawValue) {
+    const symbols = parseTickerList(rawValue);
+    if (!symbols.length) {
+      state.savedInsertTier = null;
+      renderSavedList();
+      return;
+    }
+    // Stays open after a successful add, mirroring the Watchlist's + box.
+    state.savedInsertTier = tierKey;
+    addOrMarkTickers(symbols, tierKey);
+  }
+
+  /** Used by the Saved view's per-tier +: marks existing Watchlist tickers
+   *  with this tier, or adds brand-new ones to the Watchlist (at the end)
+   *  already marked, so there's something to review. */
+  function addOrMarkTickers(rawSymbols, tierKey) {
+    const clean = rawSymbols.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+    if (!clean.length) return;
+
+    pushUndo();
+
+    const wasEmpty = state.stocks.length === 0;
+    clean.forEach((sym) => {
+      if (!state.stocks.find(e => e.symbol === sym)) {
+        state.stocks.push({ symbol: sym, viewed: false, addedAt: Date.now() });
+      }
+      setMark(sym, tierKey);
+    });
+
+    if (state.isComplete) {
+      state.isComplete = false;
+      hideCompleteBanner();
+    }
+
+    if (wasEmpty) selectIndex(0); else renderStatusBar();
+  }
+
+  /** Saved-view click target: jump to a symbol, re-adding it to the end of
+   *  the Watchlist first if it's no longer there. */
+  function jumpToSavedSymbol(symbol) {
+    let idx = state.stocks.findIndex(e => e.symbol === symbol);
+    if (idx === -1) {
+      pushUndo();
+      state.stocks.push({ symbol: symbol, viewed: false, addedAt: Date.now() });
+      idx = state.stocks.length - 1;
+    }
+    selectIndex(idx);
+  }
+
+  function setActiveTab(tab) {
+    state.activeTab = tab;
+    clearSelection();
+    el.tabWatchlist.classList.toggle("active", tab === "watchlist");
+    el.tabSaved.classList.toggle("active", tab === "saved");
+    el.sidebarList.classList.toggle("hidden", tab !== "watchlist");
+    el.savedList.classList.toggle("hidden", tab !== "saved");
+    el.sidebarAdd.classList.toggle("hidden", tab !== "watchlist");
+    renderSelectionBar();
+  }
+
+  // ==========================================================================
+  // DRAG: Watchlist (reorder + swipe-to-delete) and Saved (swipe-to-unmark +
+  // drag-to-retier between groups). Implemented with Pointer Events (unifies
+  // mouse/touch/pen) rather than native HTML5 drag-and-drop, since the
+  // gestures are directional and native DnD doesn't model that. Dragging is
+  // disabled while either view's insert box is open, so they never fight
+  // over what a row currently refers to.
+  // ==========================================================================
+
+  function attachWatchlistRowDrag(row, wrap, backdrop, i, symbol) {
     let drag = null;
 
     row.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
-      if (state.insertAfterIndex !== null) return;
+      if (state.insertAfterIndex !== null || state.savedInsertTier !== null) return;
       if (e.target.closest("button")) return; // let mark/+/x buttons work normally
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return; // these are selection clicks, not drags
 
       drag = {
         pointerId: e.pointerId,
@@ -1081,6 +1595,20 @@
         targetIndex: i,
       };
       row.setPointerCapture(e.pointerId);
+    });
+
+    // Selection clicks (Ctrl/Cmd or Shift held) never start a drag above,
+    // so handle them directly on plain 'click' instead of through the
+    // pointer-capture dance the drag/navigate path below needs.
+    row.addEventListener("click", (e) => {
+      if (!(e.ctrlKey || e.metaKey || e.shiftKey)) return;
+      if (e.target.closest("button")) return;
+      if (e.shiftKey) {
+        selectRange("watchlist", i, state.stocks.map(s => s.symbol));
+      } else {
+        toggleSelection("watchlist", i, symbol);
+      }
+      renderSidebar();
     });
 
     row.addEventListener("pointermove", (e) => {
@@ -1099,7 +1627,7 @@
       e.preventDefault();
 
       if (drag.mode === "delete") {
-        const clamped = Math.min(0, dx); // only leftward movement does anything
+        const clamped = Math.min(0, dx);
         row.style.transform = "translateX(" + clamped + "px)";
         const progress = Math.min(1, Math.abs(clamped) / DRAG_DELETE_THRESHOLD);
         row.style.opacity = String(1 - 0.35 * progress);
@@ -1122,10 +1650,14 @@
       if (!drag.moved) {
         drag = null;
         // Never crossed the drag threshold -- this was a plain click/tap
-        // on the row. Pointer capture means the browser's native 'click'
-        // event would land on `row` itself rather than bubbling up from
+        // with no modifier key (those are handled by the 'click' listener
+        // above instead). Pointer capture means the browser's native
+        // 'click' would land on `row` itself rather than bubbling from
         // whatever was actually pressed, so navigation is handled directly
-        // here rather than via a separate click listener.
+        // here instead. A plain click also clears any existing selection,
+        // same as how this works in a typical file browser.
+        if (state.selectedSymbols.size > 0) clearSelection();
+        setAnchor("watchlist", i);
         selectIndex(i);
         return;
       }
@@ -1133,7 +1665,7 @@
       if (drag.mode === "delete") {
         const dx = e.clientX - drag.startX;
         if (Math.abs(Math.min(0, dx)) >= DRAG_DELETE_THRESHOLD) {
-          removeTicker(i); // re-renders the sidebar, discarding these inline styles
+          removeTicker(i);
         } else {
           row.style.transition = "transform 150ms ease, opacity 150ms ease";
           row.style.transform = "";
@@ -1153,6 +1685,129 @@
 
     row.addEventListener("pointerup", endDrag);
     row.addEventListener("pointercancel", endDrag);
+  }
+
+  /** Saved-view drag: leftward swipe unmarks (same visual as Watchlist's
+   *  delete swipe); vertical drag re-tiers by detecting which group header
+   *  the pointer is currently over. */
+  function attachSavedRowDrag(row, wrap, backdrop, savedEntry, displayIndex) {
+    let drag = null;
+
+    row.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (state.insertAfterIndex !== null || state.savedInsertTier !== null) return;
+      if (e.target.closest("button")) return;
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return; // these are selection clicks, not drags
+
+      const headers = Array.from(el.savedList.querySelectorAll(".saved-group-header")).map((h) => ({
+        tierKey: h.dataset.tier,
+        top: h.getBoundingClientRect().top,
+      }));
+
+      drag = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        mode: null,
+        moved: false,
+        headers: headers,
+        targetTier: savedEntry.mark,
+      };
+      row.setPointerCapture(e.pointerId);
+    });
+
+    row.addEventListener("click", (e) => {
+      if (!(e.ctrlKey || e.metaKey || e.shiftKey)) return;
+      if (e.target.closest("button")) return;
+      if (e.shiftKey) {
+        selectRange("saved", displayIndex, state.savedDisplayOrder);
+      } else {
+        toggleSelection("saved", displayIndex, savedEntry.symbol);
+      }
+      renderSidebar();
+    });
+
+    row.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      if (!drag.moved) {
+        if (Math.abs(dx) < DRAG_CLICK_THRESHOLD && Math.abs(dy) < DRAG_CLICK_THRESHOLD) return;
+        drag.moved = true;
+        drag.mode = (Math.abs(dx) > Math.abs(dy) && dx < 0) ? "delete" : "retier";
+        row.classList.add("dragging");
+        if (drag.mode === "delete") backdrop.style.visibility = "visible";
+      }
+
+      e.preventDefault();
+
+      if (drag.mode === "delete") {
+        const clamped = Math.min(0, dx);
+        row.style.transform = "translateX(" + clamped + "px)";
+        const progress = Math.min(1, Math.abs(clamped) / DRAG_DELETE_THRESHOLD);
+        row.style.opacity = String(1 - 0.35 * progress);
+      } else {
+        row.style.transform = "translateY(" + dy + "px)";
+        let newTarget = drag.targetTier;
+        for (let k = drag.headers.length - 1; k >= 0; k--) {
+          if (e.clientY >= drag.headers[k].top) { newTarget = drag.headers[k].tierKey; break; }
+        }
+        if (newTarget !== drag.targetTier) {
+          drag.targetTier = newTarget;
+          highlightTierHeader(newTarget);
+        }
+      }
+    });
+
+    function endDrag(e) {
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      row.releasePointerCapture(e.pointerId);
+      row.classList.remove("dragging");
+      clearTierHeaderHighlight();
+
+      if (!drag.moved) {
+        drag = null;
+        if (state.selectedSymbols.size > 0) clearSelection();
+        setAnchor("saved", displayIndex);
+        jumpToSavedSymbol(savedEntry.symbol);
+        return;
+      }
+
+      if (drag.mode === "delete") {
+        const dx = e.clientX - drag.startX;
+        if (Math.abs(Math.min(0, dx)) >= DRAG_DELETE_THRESHOLD) {
+          unmarkEntry(savedEntry.symbol);
+        } else {
+          row.style.transition = "transform 150ms ease, opacity 150ms ease";
+          row.style.transform = "";
+          row.style.opacity = "";
+          backdrop.style.visibility = "hidden";
+        }
+      } else {
+        row.style.transform = "";
+        if (drag.targetTier && drag.targetTier !== savedEntry.mark) {
+          pushUndo();
+          setMark(savedEntry.symbol, drag.targetTier);
+          renderSidebar();
+        }
+      }
+
+      drag = null;
+    }
+
+    row.addEventListener("pointerup", endDrag);
+    row.addEventListener("pointercancel", endDrag);
+  }
+
+  function highlightTierHeader(tierKey) {
+    el.savedList.querySelectorAll(".saved-group-header").forEach((h) => {
+      h.classList.toggle("drop-target", h.dataset.tier === tierKey);
+    });
+  }
+
+  function clearTierHeaderHighlight() {
+    el.savedList.querySelectorAll(".saved-group-header").forEach((h) => h.classList.remove("drop-target"));
   }
 
   /** Shifts sibling rows out of the way to preview where a dragged row would land. */
@@ -1179,6 +1834,7 @@
    *  at the same ticker regardless of where it ends up. */
   function moveTicker(fromIndex, toIndex) {
     if (fromIndex === toIndex) return;
+    pushUndo();
     const currentRef = state.currentIndex >= 0 ? state.stocks[state.currentIndex] : null;
     const [moved] = state.stocks.splice(fromIndex, 1);
     state.stocks.splice(toIndex, 0, moved);
@@ -1197,7 +1853,7 @@
     }
   }
 
-  /** (Re)starts the normal-speed 1-second tick from a full interval. */
+  /** (Re)starts the 1-second tick from a full interval. */
   function startCountdownTimer() {
     stopCountdownTimer();
     state.remainingSeconds = state.intervalSeconds;
@@ -1287,6 +1943,7 @@
     state.isPlaying = true;
     state.isComplete = false;
     state.insertAfterIndex = null;
+    state.savedInsertTier = null;
     hideCompleteBanner();
 
     if (state.stocks.length === 0) {
@@ -1308,11 +1965,13 @@
   }
 
   // ==========================================================================
-  // WATCHLIST EDITING (sidebar)
-  // Insert/remove/move all operate directly on state.stocks. currentIndex is
-  // kept pointing at the *same ticker* through any edit -- e.g. inserting
-  // two tickers before the current one shifts currentIndex by two so the
-  // chart on screen doesn't change underneath you.
+  // WATCHLIST EDITING
+  // Insert/remove/move all operate directly on state.stocks and never touch
+  // state.saved -- removing a ticker here leaves its Saved mark (if any)
+  // intact, in case it comes back later. currentIndex is kept pointing at
+  // the *same ticker* through any edit -- e.g. inserting two tickers before
+  // the current one shifts currentIndex by two so the chart on screen
+  // doesn't change underneath you.
   // ==========================================================================
 
   /** Splices new ticker entries into state.stocks starting at `atIndex`. */
@@ -1320,8 +1979,10 @@
     const clean = symbols.map(s => String(s).trim().toUpperCase()).filter(Boolean);
     if (!clean.length) return;
 
+    pushUndo();
+
     const wasEmpty = state.stocks.length === 0;
-    const newEntries = clean.map(symbol => ({ symbol: symbol, mark: null, viewed: false, addedAt: Date.now() }));
+    const newEntries = clean.map(symbol => ({ symbol: symbol, viewed: false, addedAt: Date.now() }));
     state.stocks.splice(atIndex, 0, ...newEntries);
 
     if (wasEmpty) {
@@ -1345,7 +2006,8 @@
   function removeTicker(i) {
     if (i < 0 || i >= state.stocks.length) return;
 
-    state.stocks.splice(i, 1);
+    pushUndo();
+    state.stocks.splice(i, 1); // state.saved is untouched on purpose
 
     if (state.stocks.length === 0) {
       stopCountdownTimer();
@@ -1395,6 +2057,64 @@
   }
 
   // ==========================================================================
+  // UNDO / REDO
+  // A snapshot of state.stocks + state.saved + currentIndex is pushed
+  // *before* any list edit (insert/remove/move/mark/unmark/addOrMark/
+  // replace). Plain navigation, pause/resume, and Restart are NOT undoable
+  // -- only actual edits to the list or its marks are.
+  // ==========================================================================
+
+  const undoStack = [];
+  const redoStack = [];
+
+  function snapshotState() {
+    return {
+      stocks: state.stocks.map(e => ({ symbol: e.symbol, viewed: e.viewed })),
+      saved: state.saved.map(e => ({ symbol: e.symbol, mark: e.mark })),
+      currentIndex: state.currentIndex,
+    };
+  }
+
+  function pushUndo() {
+    undoStack.push(snapshotState());
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack.length = 0; // a fresh edit invalidates any redo history
+  }
+
+  function applySnapshot(snap) {
+    state.stocks = snap.stocks.map(e => ({ symbol: e.symbol, viewed: e.viewed }));
+    state.saved = snap.saved.map(e => ({ symbol: e.symbol, mark: e.mark }));
+    state.isComplete = false;
+    hideCompleteBanner();
+    state.insertAfterIndex = null;
+    state.savedInsertTier = null;
+
+    if (state.stocks.length === 0) {
+      stopCountdownTimer();
+      state.currentIndex = -1;
+      showNoStocksMessage();
+      renderStatusBar();
+      return;
+    }
+
+    state.currentIndex = Math.min(Math.max(snap.currentIndex, 0), state.stocks.length - 1);
+    loadChart(state.stocks[state.currentIndex].symbol);
+    if (state.isPlaying) startCountdownTimer(); else renderStatusBar();
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshotState());
+    applySnapshot(undoStack.pop());
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshotState());
+    applySnapshot(redoStack.pop());
+  }
+
+  // ==========================================================================
   // COMPLETE BANNER
   // ==========================================================================
 
@@ -1410,20 +2130,19 @@
 
   // ==========================================================================
   // PERSISTENCE
-  // The whole point of stocks.js is to be a *seed* list -- the very first
-  // time the page loads, or after an explicit reset. Once you start editing
-  // the list, marking tickers, or just browsing through it, that live state
-  // is continuously saved to localStorage and silently restored next time
-  // you open this file in the same browser, so closing the tab doesn't
-  // lose your marks or your place in the list.
+  // stocks.js is a *seed* list -- the very first load, or after an explicit
+  // Replace. Once you start editing/marking/browsing, that live state is
+  // continuously saved to localStorage and silently restored next time you
+  // open this file in the same browser.
   // ==========================================================================
 
-  const STORAGE_KEY = "stockReviewBrowser:session:v1";
+  const STORAGE_KEY = "stockReviewBrowser:session:v3";
 
   function saveSession() {
     try {
       const payload = {
-        stocks: state.stocks.map(e => ({ symbol: e.symbol, mark: e.mark, viewed: e.viewed })),
+        stocks: state.stocks.map(e => ({ symbol: e.symbol, viewed: e.viewed })),
+        saved: state.saved.map(e => ({ symbol: e.symbol, mark: e.mark })),
         currentIndex: state.currentIndex,
         savedAt: Date.now(),
       };
@@ -1454,19 +2173,22 @@
    *  from stocks.js, exactly as if this were the very first load. */
   function replaceFromStocksFile() {
     const ok = window.confirm(
-      "Replace the current list with stocks.js?\n\nThis clears your current list, marks, and viewed history."
+      "Replace the current list with stocks.js?\n\nThis clears the Watchlist, Saved marks, and viewed history."
     );
     if (!ok) return;
 
+    pushUndo();
     clearSession();
     stopCountdownTimer();
     state.stocks = (typeof STOCKS !== "undefined" && Array.isArray(STOCKS))
       ? STOCKS.map(s => String(s).trim().toUpperCase()).filter(Boolean)
-          .map(symbol => ({ symbol: symbol, mark: null, viewed: false }))
+          .map(symbol => ({ symbol: symbol, viewed: false }))
       : [];
+    state.saved = [];
     state.isPlaying = true;
     state.isComplete = false;
     state.insertAfterIndex = null;
+    state.savedInsertTier = null;
     hideCompleteBanner();
 
     if (state.stocks.length === 0) {
@@ -1509,39 +2231,33 @@
   // ==========================================================================
   // EXPORT
   // The dropdown picks what goes into the .txt file:
-  //   - Check / Level 1 / Level 2 / Watchlist: a flat list of tickers
-  //     carrying that specific mark.
-  //   - Viewed / Unviewed: a flat list based on watch history instead of marks.
-  //   - All (grouped): every marked ticker, organized into one section per
-  //     mark category (unmarked tickers are left out -- there's no category
-  //     for them to belong to).
+  //   - Saved (grouped, default): every entry in state.saved, one section
+  //     per tier -- includes tickers no longer in the Watchlist.
+  //   - Watchlist: the full current list, in order, mark glyph shown inline
+  //     when set.
   // ==========================================================================
 
   function formatEntryLine(entry) {
-    return entry.mark ? entry.symbol + " " + MARK_GLYPH[entry.mark] : entry.symbol;
+    const mark = getMark(entry.symbol);
+    return mark ? entry.symbol + " " + MARK_GLYPH[mark] : entry.symbol;
   }
 
   function buildExportLines(filter) {
-    if (filter === "all") {
-      const lines = [];
-      MARK_CYCLE.forEach((markKey) => {
-        if (!markKey) return; // skip the "unmarked" slot in the cycle
-        const matches = state.stocks.filter(e => e.mark === markKey);
-        if (!matches.length) return;
-        lines.push(MARK_LABEL[markKey].toUpperCase() + " (" + matches.length + ")");
-        matches.forEach(e => lines.push("  " + e.symbol));
-        lines.push("");
-      });
-      if (lines.length && lines[lines.length - 1] === "") lines.pop();
-      return lines;
+    if (filter === "watchlist") {
+      return state.stocks.map(formatEntryLine);
     }
 
-    let entries;
-    if (filter === "viewed") entries = state.stocks.filter(e => e.viewed);
-    else if (filter === "unviewed") entries = state.stocks.filter(e => !e.viewed);
-    else entries = state.stocks.filter(e => e.mark === filter);
-
-    return entries.map(formatEntryLine);
+    // "saved" (default): grouped by tier.
+    const lines = [];
+    MARK_KEYS.forEach((tierKey) => {
+      const matches = state.saved.filter(e => e.mark === tierKey);
+      if (!matches.length) return;
+      lines.push(MARK_LABEL[tierKey].toUpperCase() + " (" + matches.length + ")");
+      matches.forEach(e => lines.push("  " + e.symbol));
+      lines.push("");
+    });
+    if (lines.length && lines[lines.length - 1] === "") lines.pop();
+    return lines;
   }
 
   function updateExportButtonState() {
@@ -1573,9 +2289,18 @@
   el.btnNext.addEventListener("click", () => goToNext());
   el.btnPlayPause.addEventListener("click", togglePlayPause);
   el.btnRestart.addEventListener("click", restart);
+  el.btnTheme.addEventListener("click", toggleTheme);
   el.btnOpen.addEventListener("click", openCurrentStock);
   el.btnBannerRestart.addEventListener("click", restart);
   el.btnBannerDismiss.addEventListener("click", hideCompleteBanner);
+
+  el.tabWatchlist.addEventListener("click", () => setActiveTab("watchlist"));
+  el.tabSaved.addEventListener("click", () => setActiveTab("saved"));
+
+  el.btnClearSelection.addEventListener("click", () => {
+    clearSelection();
+    renderSidebar();
+  });
 
   el.intervalInput.addEventListener("change", () => {
     let val = parseInt(el.intervalInput.value, 10);
@@ -1583,8 +2308,6 @@
     if (val > 120) val = 120;
     el.intervalInput.value = val;
     state.intervalSeconds = val;
-    // Applied from the next full countdown onward; if currently playing,
-    // restart now so the new interval takes effect immediately.
     if (state.isPlaying && !state.isComplete) {
       startCountdownTimer();
     } else {
@@ -1619,45 +2342,112 @@
   el.exportFilter.addEventListener("change", updateExportButtonState);
   el.btnExport.addEventListener("click", exportFilteredList);
 
-  // Close an open "insert" box on a genuine click elsewhere -- but only
-  // when the click target isn't part of any sidebar row (mark/+/x buttons,
-  // the symbol itself) or the box being inserted. Those each manage
-  // state.insertAfterIndex themselves; pre-emptively closing here too would
-  // re-render #sidebar-list out from under their click target before their
-  // own click handler fires, silently swallowing the click. Header
-  // controls (Copy List, Export, the bulk Add box) live outside
-  // #sidebar-list, so renderSidebar() never touches them -- safe to close
-  // first and let their own click proceed normally afterward.
+  // Global Ctrl+V: paste a ticker list straight into the Watchlist without
+  // needing to click + first. Only intercepts when nothing else is focused
+  // (so normal paste into a text field still works) and only on the
+  // Watchlist tab -- the Saved view's "add directly as a tier" flow is
+  // intentionally +-only, since pasting there needs you to pick which tier.
+  document.addEventListener("paste", (e) => {
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (state.activeTab !== "watchlist") return;
+
+    const clipboard = e.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+    const symbols = parseTickerList(clipboard.getData("text"));
+    if (!symbols.length) return;
+
+    e.preventDefault();
+    insertTickers(symbols, state.stocks.length);
+  });
+
+  // Close an open "insert" box (either view) on a genuine click elsewhere --
+  // but only when the click target isn't part of any sidebar row (mark/+/x
+  // buttons, the symbol itself), a saved-view group header (its own +), or
+  // the open box itself. Those each manage their own insert state via their
+  // own click handlers; pre-emptively closing here too would re-render the
+  // list out from under their click target before their own click handler
+  // fires, silently swallowing the click. Header controls (Copy List,
+  // Export, the bulk Add box) live outside both lists, so they're safe to
+  // close-on-click-into without that risk.
   document.addEventListener("pointerdown", (e) => {
-    if (state.insertAfterIndex === null) return;
-    if (e.target.closest(".insert-row")) return;
-    if (e.target.closest(".sidebar-row")) return;
-    state.insertAfterIndex = null;
-    renderSidebar();
+    if (state.insertAfterIndex !== null
+      && !e.target.closest(".insert-row")
+      && !e.target.closest(".sidebar-row")) {
+      state.insertAfterIndex = null;
+      renderSidebar();
+    }
+    if (state.savedInsertTier !== null
+      && !e.target.closest(".insert-row")
+      && !e.target.closest(".sidebar-row")
+      && !e.target.closest(".saved-group-header")) {
+      state.savedInsertTier = null;
+      renderSavedList();
+    }
   });
 
   document.addEventListener("keydown", (e) => {
-    // Don't hijack typing into the interval input, the add box, or an
-    // in-progress sidebar insert.
-    const tag = (e.target && e.target.tagName) || "";
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
-
-    // Ctrl+Space: cycle the mark on whichever ticker is currently on screen,
-    // no sidebar click needed. e.repeat is ignored so holding the combo
-    // doesn't rapid-fire through every mark state.
-    if (e.code === "Space" && e.ctrlKey) {
+    // Ctrl+Space / Ctrl+0/1/2/3: mark shortcuts work everywhere, even while
+    // typing in a text field -- there's no native browser meaning for
+    // these combos to preserve, and the point is not needing to click out
+    // of wherever you're focused just to flag the current ticker.
+    if (e.ctrlKey && e.code === "Space") {
       e.preventDefault();
-      if (!e.repeat) cycleMark(state.currentIndex);
+      if (!e.repeat) {
+        if (hasActiveSelectionForTab(state.activeTab)) {
+          bulkSetMark("check");
+        } else {
+          const hasCurrent = state.currentIndex >= 0 && state.currentIndex < state.stocks.length;
+          if (hasCurrent) toggleMarkTier(state.stocks[state.currentIndex].symbol, "check");
+        }
+      }
+      return;
+    }
+    if (e.ctrlKey && (e.code === "Digit0" || e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3")) {
+      e.preventDefault();
+      if (!e.repeat) {
+        const tierKey = e.code === "Digit0" ? "level0"
+          : e.code === "Digit1" ? "level1"
+          : e.code === "Digit2" ? "level2"
+          : "level3";
+        if (hasActiveSelectionForTab(state.activeTab)) {
+          bulkSetMark(tierKey);
+        } else {
+          const hasCurrent = state.currentIndex >= 0 && state.currentIndex < state.stocks.length;
+          if (hasCurrent) toggleMarkTier(state.stocks[state.currentIndex].symbol, tierKey);
+        }
+      }
       return;
     }
 
-    // Plain Space: pause/resume. e.repeat is ignored so holding the key
-    // down doesn't rapid-fire toggles via the OS's key-repeat.
+    // Everything else respects normal text-field behavior (native undo,
+    // typing spaces/letters, arrow-key cursor movement, Delete-to-erase).
+    const tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+    if (e.ctrlKey && e.code === "KeyE") {
+      e.preventDefault();
+      if (!e.repeat) exportFilteredList();
+      return;
+    }
+    if (e.ctrlKey && e.code === "KeyZ") {
+      e.preventDefault();
+      undo(); // holding the key repeats, same as most native undo stacks
+      return;
+    }
+    if (e.ctrlKey && e.code === "KeyY") {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
     if (e.code === "Space") {
       e.preventDefault();
       if (!e.repeat) togglePlayPause();
       return;
     }
+
+    const hasCurrent = state.currentIndex >= 0 && state.currentIndex < state.stocks.length;
 
     switch (e.key) {
       case "ArrowRight":
@@ -1668,10 +2458,31 @@
         e.preventDefault();
         goToPrev();
         break;
+      case "Delete":
+        e.preventDefault();
+        if (hasActiveSelectionForTab(state.activeTab)) {
+          bulkDeleteOrUnmark();
+          break;
+        }
+        if (!hasCurrent) break;
+        if (state.activeTab === "saved") {
+          unmarkEntry(state.stocks[state.currentIndex].symbol);
+        } else {
+          removeTicker(state.currentIndex);
+        }
+        break;
       case "Escape":
         if (state.insertAfterIndex !== null) {
           e.preventDefault();
           state.insertAfterIndex = null;
+          renderSidebar();
+        } else if (state.savedInsertTier !== null) {
+          e.preventDefault();
+          state.savedInsertTier = null;
+          renderSavedList();
+        } else if (state.selectedSymbols.size > 0) {
+          e.preventDefault();
+          clearSelection();
           renderSidebar();
         }
         break;
@@ -1690,13 +2501,25 @@
   function init() {
     el.intervalInput.value = state.intervalSeconds;
 
+    let savedTheme = "dark";
+    try { savedTheme = localStorage.getItem(THEME_KEY) || "dark"; } catch (err) { /* ignore */ }
+    state.theme = savedTheme;
+    document.documentElement.setAttribute("data-theme", savedTheme);
+    el.btnTheme.textContent = savedTheme === "light" ? "Dark Mode" : "Light Mode";
+    CONFIG.chartTheme = savedTheme === "light" ? "light" : "dark";
+    CONFIG.toolbarBg = savedTheme === "light" ? "#eef0f3" : "#11161f";
+
     const saved = loadSession();
-    if (saved && saved.stocks.length > 0) {
+    if (saved && Array.isArray(saved.stocks) && saved.stocks.length > 0) {
       state.stocks = saved.stocks.map(e => ({
         symbol: String(e.symbol || "").toUpperCase(),
-        mark: e.mark || null,
         viewed: !!e.viewed,
       })).filter(e => e.symbol);
+
+      state.saved = (Array.isArray(saved.saved) ? saved.saved : []).map(e => ({
+        symbol: String(e.symbol || "").toUpperCase(),
+        mark: e.mark === "watch" ? "level3" : (e.mark || null), // old key, pre-rename
+      })).filter(e => e.symbol && e.mark);
 
       const savedIndex = Number.isInteger(saved.currentIndex) ? saved.currentIndex : 0;
       state.currentIndex = Math.min(Math.max(savedIndex, 0), state.stocks.length - 1);
